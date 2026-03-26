@@ -1,0 +1,132 @@
+Improve my current web app UI and UX based on the following requirements.
+
+IMPORTANT:
+- Keep the current structure
+- Do NOT rebuild from scratch
+- Improve carefully and professionally
+- The app is in Turkish
+- Focus on trust, clarity, and conversion
+- Keep design clean and modern
+
+Now apply these improvements:
+
+1) ANSWER STRUCTURE (VERY IMPORTANT)
+Update the "Analiz Sonucu" section.
+
+Instead of plain text, structure the answer like this:
+
+🔹 Kısa Özet  
+🔹 Olası Riskler  
+- madde madde
+
+🔹 Eksik Bilgiler  
+- madde madde
+
+🔹 Sonraki Adımlar  
+- madde madde
+
+🔹 Güven Seviyesi  
+%XX
+
+Make this visually clear using spacing, icons, or layout.
+
+---
+
+2) ADD USER GUIDANCE SECTION
+Below the main input, add a small section:
+
+“Ne yapmak istiyorsunuz?”
+
+Add 3 buttons:
+- Risk analizi yap
+- Süreci öğren
+- Teklif karşılaştır
+
+These buttons should fill the input or guide the user.
+
+---
+
+3) HERO IMPROVEMENT
+Under the main subtitle, add:
+
+• Binanızın risklerini anlayın  
+• Haklarınızı öğrenin  
+• Doğru adımları planlayın
+
+Make it clean and readable.
+
+---
+
+4) TRUST LABEL
+Above or near the input, add a small label:
+
+“AI ile analiz edilir”
+
+---
+
+5) LOADING STATE
+When user clicks “Analizi Başlat”:
+- Show a loading state
+- Text: “Analiz ediliyor...”
+- Add subtle animation or spinner
+
+---
+
+6) RESULT CTA (VERY IMPORTANT)
+At the end of the result, automatically show:
+
+“Bu durumda detaylı analiz önerilir.
+Uzman incelemesi ile riskleri netleştirebilirsiniz.”
+
+Add a button under it:
+“Detaylı analiz için uzmanla görüş”
+
+---
+
+7) EXPERT SECTION UPGRADE
+Improve the expert section:
+
+Change title to:
+“Bu konuda risk almak istemiyor musunuz?”
+
+Add subtitle:
+“Detaylı analiz ile daha net ve güvenli karar verin”
+
+Keep the button but make it more visible and slightly larger.
+
+---
+
+8) TRUST FEATURES SECTION
+Add a section near the bottom:
+
+✔ Türkiye’ye özel içerik  
+✔ Sade ve anlaşılır anlatım  
+✔ Tarafsız analiz  
+✔ Gerektiğinde uzman yönlendirme
+
+Display them as clean cards or list.
+
+---
+
+9) UX POLISH
+- Add hover effects on buttons
+- Make example questions clickable
+- Improve spacing between sections
+- Slightly stronger shadows for cards
+- Better visual hierarchy
+
+---
+
+10) FINAL GOAL
+The app should feel:
+- trustworthy
+- structured
+- professional
+- helpful
+- ready for real users
+
+Do NOT overdesign.
+Keep it simple but high-quality.
+
+After updating:
+Explain what you improved in a short summary.
