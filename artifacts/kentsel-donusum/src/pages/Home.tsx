@@ -80,7 +80,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto flex items-center gap-2">
           <div className="w-2 h-6 bg-blue-700 rounded-sm" />
           <span className="text-sm font-medium text-gray-500 tracking-wide uppercase">
-            Resmi Rehber
+            Kentsel Dönüşüm Rehberi
           </span>
         </div>
       </header>
