@@ -68,32 +68,6 @@ const PDF_SECTION_KEYS = [
   { key: "🔹 Güven Seviyesi", label: "Güven Seviyesi", color: "purple" },
 ];
 
-const SIMULATED_PDF_RESULT = `🔹 Kısa Özet
-Yüklenen belge incelendi. Belgede müteahhit teklifi, yapı ruhsatı bilgileri ve kira tazminat şartlarına ilişkin maddeler tespit edildi. Genel olarak standart bir kentsel dönüşüm sözleşmesiyle uyumlu görünmektedir.
-
-🔹 Dikkat Edilmesi Gereken Noktalar
-- Teslim süresi için cezai şart maddesi yetersiz tanımlanmış
-- Kira yardımı ödeme takvimi net belirtilmemiş
-- İtiraz ve şikayet süreci için başvuru yolları eksik
-
-🔹 Olası Riskler
-- Gecikme tazminatı üst sınırı düşük belirlenmiş olabilir
-- Bağımsız bölüm alanlarında ölçü belirsizliği mevcut
-- Ortak alan kullanımı hakkında hüküm bulunmuyor
-
-🔹 Eksik Bilgiler
-- Yapı denetim firması bilgisi belgede yer almıyor
-- Sigorta ve güvence şartları tanımlanmamış
-- Projenin imar durumuyla uyumu teyit edilmemiş
-
-🔹 Önerilen Sonraki Adımlar
-- Gecikme ceza maddelerini avukatınızla gözden geçirin
-- Kira yardımı ödeme planını yazılı olarak netleştirin
-- İmar uygunluk belgesini talep edin
-- Sigorta şartlarını sözleşmeye ekletin
-
-🔹 Güven Seviyesi
-%72`;
 
 function parseAnswer(
   raw: string,
@@ -167,16 +141,66 @@ function AnswerSection({ label, color, lines }: { label: string; color: string; 
 
 type PdfState = "empty" | "selected" | "analyzing" | "done";
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzePdf(
+  file: File,
+  onChunk: (text: string) => void
+): Promise<void> {
+  const base64 = await fileToBase64(file);
+  const res = await fetch(`${BASE}/api/anthropic/analyze-pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pdf: base64, filename: file.name }),
+  });
+  if (!res.ok || !res.body) throw new Error("Analiz başlatılamadı.");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const payload = JSON.parse(line.slice(6));
+          if (payload.content) onChunk(payload.content);
+        } catch {}
+      }
+    }
+  }
+}
+
 function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [pdfState, setPdfState] = useState<PdfState>("empty");
   const [fileName, setFileName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfAnswer, setPdfAnswer] = useState("");
+  const [pdfError, setPdfError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
     if (!file || file.type !== "application/pdf") return;
     setFileName(file.name);
+    setPdfFile(file);
     setPdfState("selected");
+    setPdfAnswer("");
+    setPdfError("");
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -189,18 +213,35 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const onDragLeave = () => setIsDragging(false);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    if (!pdfFile) return;
     setPdfState("analyzing");
-    setTimeout(() => setPdfState("done"), 2800);
+    setPdfAnswer("");
+    setPdfError("");
+    try {
+      await analyzePdf(pdfFile, (chunk) => {
+        setPdfAnswer((prev) => {
+          if (prev === "") setPdfState("done");
+          return prev + chunk;
+        });
+      });
+      setPdfState("done");
+    } catch {
+      setPdfError("Analiz sırasında bir hata oluştu. Lütfen tekrar deneyin.");
+      setPdfState("selected");
+    }
   };
 
   const handleReset = () => {
     setPdfState("empty");
     setFileName("");
+    setPdfFile(null);
+    setPdfAnswer("");
+    setPdfError("");
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const pdfSections = parseAnswer(SIMULATED_PDF_RESULT, PDF_SECTION_KEYS);
+  const pdfSections = pdfAnswer ? parseAnswer(pdfAnswer, PDF_SECTION_KEYS) : [];
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 sm:p-8 flex flex-col gap-4">
@@ -282,8 +323,13 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         </div>
       )}
 
+      {/* Error */}
+      {pdfError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{pdfError}</p>
+      )}
+
       {/* Result */}
-      {pdfState === "done" && (
+      {pdfState === "done" && pdfAnswer && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Belge Analiz Sonucu</p>
@@ -299,26 +345,35 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
             📄 <span className="font-medium">{fileName}</span>
           </p>
 
-          <div className="flex flex-col gap-3">
-            {pdfSections.map((section) => (
-              <AnswerSection key={section.label} {...section} />
-            ))}
-          </div>
+          {pdfSections.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {pdfSections.map((section) => (
+                <AnswerSection key={section.label} {...section} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-gray-400 text-sm py-1">
+              <span className="inline-block w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              <span>Analiz hazırlanıyor...</span>
+            </div>
+          )}
 
-          {/* Expert CTA after result */}
-          <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
-            <p className="text-sm text-gray-700 font-medium">
-              Bu belge için detaylı inceleme önerilir.
-              <br />
-              <span className="text-gray-500 font-normal">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
-            </p>
-            <button
-              onClick={onExpert}
-              className="self-start bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-sm"
-            >
-              Uzmanla Detaylı İncele
-            </button>
-          </div>
+          {/* Expert CTA — show only when full result is parsed */}
+          {pdfSections.length > 0 && (
+            <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
+              <p className="text-sm text-gray-700 font-medium">
+                Bu belge için detaylı inceleme önerilir.
+                <br />
+                <span className="text-gray-500 font-normal">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
+              </p>
+              <button
+                onClick={onExpert}
+                className="self-start bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-sm"
+              >
+                Uzmanla Detaylı İncele
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -110,4 +110,82 @@ Bu yapıyı her yanıtta uygula. Yanıtın Türkçe olsun.`,
   res.end();
 });
 
+router.post("/analyze-pdf", async (req: Request, res: Response) => {
+  const { pdf, filename } = req.body as { pdf: string; filename: string };
+
+  if (!pdf) {
+    res.status(400).json({ error: "PDF verisi eksik." });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const stream = anthropic.messages.stream({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    system: `Sen Türkiye'de kentsel dönüşüm ve yapı denetimi konusunda uzman bir rehbersin. 
+Yüklenen belgeyi analiz et ve sonuçları aşağıdaki başlıklar altında sade, 
+anlaşılır Türkçe ile yaz. Kesin hukuki veya mühendislik kararı verme. 
+Gerektiğinde uzman görüşü alınmasını tavsiye et. 
+Güvenilir ve profesyonel bir dil kullan.
+
+Yanıtını MUTLAKA bu yapıda ver, başka format kullanma:
+
+🔹 Kısa Özet
+[2-3 cümlelik genel özet]
+
+🔹 Dikkat Edilmesi Gereken Noktalar
+- [nokta 1]
+- [nokta 2]
+- [nokta 3]
+
+🔹 Olası Riskler
+- [risk 1]
+- [risk 2]
+- [risk 3]
+
+🔹 Eksik Bilgiler
+- [eksik bilgi 1]
+- [eksik bilgi 2]
+
+🔹 Önerilen Sonraki Adımlar
+- [adım 1]
+- [adım 2]
+- [adım 3]
+
+🔹 Güven Seviyesi
+%[0-100 arası bir sayı, sadece yüzde işareti ve rakam]`,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: pdf,
+            },
+          } as Parameters<typeof anthropic.messages.stream>[0]["messages"][0]["content"][0],
+          {
+            type: "text",
+            text: `Bu belgeyi (${filename || "yüklenen dosya"}) analiz et ve belirtilen format ile Türkçe olarak yanıt ver.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
+    }
+  }
+
+  res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+  res.end();
+});
+
 export default router;
