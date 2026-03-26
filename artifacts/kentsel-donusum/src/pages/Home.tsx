@@ -1,43 +1,77 @@
 import { useState } from "react";
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+async function askClaude(question: string, onChunk: (text: string) => void): Promise<void> {
+  const createRes = await fetch(`${BASE}/api/anthropic/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: question.slice(0, 60) }),
+  });
+  if (!createRes.ok) throw new Error("Konuşma oluşturulamadı.");
+  const conversation = await createRes.json();
+
+  const msgRes = await fetch(`${BASE}/api/anthropic/conversations/${conversation.id}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: question }),
+  });
+  if (!msgRes.ok || !msgRes.body) throw new Error("Yanıt alınamadı.");
+
+  const reader = msgRes.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const payload = JSON.parse(line.slice(6));
+          if (payload.content) onChunk(payload.content);
+        } catch {}
+      }
+    }
+  }
+}
+
 export default function Home() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleAsk = async () => {
-    if (!question.trim()) return;
+    if (!question.trim() || loading) return;
     setLoading(true);
     setAnswer("");
+    setError("");
 
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const q = question.toLowerCase();
-    let response = "";
-
-    if (q.includes("risk") || q.includes("deprem") || q.includes("bina")) {
-      response =
-        "Binanızın risk durumunu öğrenmek için Çevre, Şehircilik ve İklim Değişikliği Bakanlığı'nın web sitesi üzerinden veya yerel belediyenize başvurarak ücretsiz bina risk tespiti talep edebilirsiniz. Riskli yapı tespiti, lisanslı kuruluşlar tarafından yapılmakta olup sonuçlar tescil edilmektedir.";
-    } else if (q.includes("hak") || q.includes("kira") || q.includes("kiracı")) {
-      response =
-        "Kentsel dönüşüm kapsamındaki kiracılar, tahliye tazminatı ve kira yardımından yararlanma hakkına sahiptir. Kiracılar için aylık kira yardımı miktarı bölgeye göre değişmekte olup başvuru sürecinde noter onaylı kira sözleşmesi gerekmektedir.";
-    } else if (q.includes("kredi") || q.includes("finansman") || q.includes("para")) {
-      response =
-        "Riskli yapı sahipleri, Çevre ve Şehircilik Bakanlığı destekli kentsel dönüşüm kredilerinden yararlanabilir. TOKİ ve anlaşmalı bankalar aracılığıyla düşük faizli kredi imkânları sunulmaktadır. Başvurular için tapu belgesi, kimlik ve bina risk raporu gereklidir.";
-    } else if (q.includes("süre") || q.includes("ne kadar") || q.includes("zaman")) {
-      response =
-        "Kentsel dönüşüm süreci genellikle 18 ay ile 3 yıl arasında tamamlanmaktadır. Riskli yapı tespitinden yıkım kararına kadar ortalama 60 gün, yıkım sonrası inşaat süreci ise yapının büyüklüğüne göre 12-24 ay sürmektedir.";
-    } else {
-      response =
-        "Kentsel dönüşüm hakkındaki sorunuz için teşekkür ederiz. Bina risk tespiti, kiracı hakları, finansman seçenekleri veya süreç hakkında daha ayrıntılı bilgi almak için lütfen sorunuzu daha spesifik bir şekilde belirtin ya da uzmanlarımızla görüşün.";
+    try {
+      await askClaude(question, (chunk) => {
+        setAnswer((prev) => prev + chunk);
+      });
+    } catch (err) {
+      setError("Bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setAnswer(response);
-    setLoading(false);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      handleAsk();
+    }
   };
 
   const handleExpert = () => {
-    window.open("tel:+908503330330", "_self");
+    alert(
+      "Bir uzmanla görüşmek için: Mimarlar Odası veya Barolar Birliği'ne başvurabilirsiniz."
+    );
   };
 
   return (
@@ -74,8 +108,10 @@ export default function Home() {
               rows={4}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Örnek: Binam riskli mi? Kiracı olarak haklarım neler? Kredi alabilir miyim?"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition"
+              disabled={loading}
             />
 
             <button
@@ -86,12 +122,27 @@ export default function Home() {
               {loading ? "Yanıt hazırlanıyor..." : "Soruyu Sor"}
             </button>
 
-            {answer && (
+            {error && (
+              <div className="mt-4 bg-red-50 border border-red-100 rounded-xl p-4">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            {(answer || loading) && !error && (
               <div className="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-5">
                 <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
                   Yanıt
                 </p>
-                <p className="text-gray-800 text-sm leading-relaxed">{answer}</p>
+                {answer ? (
+                  <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">{answer}</p>
+                ) : (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <span className="ml-1">Yanıt hazırlanıyor...</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
