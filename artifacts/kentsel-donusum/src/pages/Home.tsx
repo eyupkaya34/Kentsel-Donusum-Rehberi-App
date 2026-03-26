@@ -220,186 +220,230 @@ type PdfState = "empty" | "selected" | "analyzing" | "done";
 
 const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-const JSPDF_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+// ── Browser-print PDF report ──────────────────────────────────────────────
 
-async function loadJsPDF(): Promise<any> {
-  if ((window as any).jspdf?.jsPDF) return (window as any).jspdf.jsPDF;
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = JSPDF_CDN;
-    script.onload = () => resolve();
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-  return (window as any).jspdf.jsPDF;
-}
-
-function sanitizePdfText(text: string): string {
+function stripEmojis(text: string): string {
   return text
-    // Turkish characters → ASCII equivalents
-    .replace(/ş/g, "s").replace(/Ş/g, "S")
-    .replace(/ğ/g, "g").replace(/Ğ/g, "G")
-    .replace(/ı/g, "i").replace(/İ/g, "I")
-    .replace(/ü/g, "u").replace(/Ü/g, "U")
-    .replace(/ö/g, "o").replace(/Ö/g, "O")
-    .replace(/ç/g, "c").replace(/Ç/g, "C")
-    // Known emojis → plain text
-    .replace(/🔹/g, ">>")
-    .replace(/✅/g, "[OK]")
-    .replace(/⚠️/g, "[!]")
-    .replace(/❌/g, "[X]")
-    .replace(/📄/g, "[Belge]")
-    .replace(/🔍/g, "[Analiz]")
-    .replace(/💡/g, "[*]")
-    .replace(/📝/g, "[Not]")
-    // Strip any remaining emoji / surrogate pairs
     .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
     .replace(/[\u{2600}-\u{27BF}]/gu, "")
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
+    .replace(/🔹|✅|⚠️|❌|📄|🔍|💡|📝|⭐|🏠|🔑/g, "")
     .trim();
 }
 
-async function downloadPdfReport(
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function formatInline(raw: string): string {
+  let s = escHtml(raw);
+  s = s.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\*([^*\n]+)\*/g, "$1");
+  s = s.replace(/&gt;&gt;/g, "");
+  return s;
+}
+
+function renderLinesHtml(lines: string[]): string {
+  let html = "";
+  let inList = false;
+
+  const closeList = () => {
+    if (inList) { html += "</ul>"; inList = false; }
+  };
+
+  for (const rawLine of lines) {
+    let line = rawLine
+      .replace(/^>+\s*/, "")
+      .replace(/^--+$/, "")
+      .trim();
+
+    if (!line) { closeList(); continue; }
+
+    const headingMatch = line.match(/^(#{1,3})\s+(.*)/);
+    if (headingMatch) {
+      closeList();
+      const level = Math.min(headingMatch[1].length + 2, 6);
+      html += `<h${level} class="md-h">${formatInline(stripEmojis(headingMatch[2]))}</h${level}>`;
+      continue;
+    }
+
+    if (/^[\*\-•]\s/.test(line)) {
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += `<li>${formatInline(stripEmojis(line.replace(/^[\*\-•]\s*/, "")))}</li>`;
+      continue;
+    }
+
+    closeList();
+    html += `<p>${formatInline(stripEmojis(line))}</p>`;
+  }
+
+  closeList();
+  return html;
+}
+
+function openPrintReport(
   fileName: string,
   sections: { label: string; lines: string[] }[],
   rawText: string
-): Promise<void> {
-  const JsPDF = await loadJsPDF();
-  const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-  const MARGIN = 20;
-  const PAGE_W = 210;
-  const PAGE_H = 297;
-  const CW = PAGE_W - MARGIN * 2;   // content width = 170mm
-  const LH = 5.5;                    // line height
-  const FOOTER_RESERVE = 30;        // space kept for footer
-
-  const navy = [27, 46, 75] as [number, number, number];
-  const gold = [201, 168, 76] as [number, number, number];
-  const dark = [45, 45, 45] as [number, number, number];
-  const grey = [107, 114, 128] as [number, number, number];
-
-  let y = MARGIN;
-
-  const ensureSpace = (needed: number) => {
-    if (y + needed > PAGE_H - FOOTER_RESERVE) {
-      renderFooter();
-      doc.addPage();
-      y = MARGIN;
-    }
-  };
-
-  const renderFooter = () => {
-    const fy = PAGE_H - 20;
-    doc.setDrawColor(...gold);
-    doc.setLineWidth(0.5);
-    doc.line(MARGIN, fy, PAGE_W - MARGIN, fy);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...grey);
-    const disc = "Bu rapor genel bilgilendirme amaclidir. Kesin hukuki veya muhendislik karari niteligi tasimazsiniz. Onemli kararlar icin lisansli uzman gorusu aliniz.";
-    const dLines = doc.splitTextToSize(disc, CW - 40);
-    doc.text(dLines, MARGIN, fy + 4);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...gold);
-    doc.text("kentseldonusumrehberi.com", MARGIN, fy + 4 + dLines.length * 3.5);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...grey);
-    const ds = new Date().toLocaleDateString("tr-TR");
-    doc.text(ds, PAGE_W - MARGIN, fy + 4, { align: "right" });
-  };
-
-  // ── HEADER ────────────────────────────────────────────────────────────────
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(...navy);
-  doc.text("Kentsel Donusum Rehberi", MARGIN, y);
-  y += 7;
-
-  doc.setDrawColor(...gold);
-  doc.setLineWidth(1.2);
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-  y += 5;
-
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(9);
-  doc.setTextColor(...grey);
-  doc.text("Yapay Zeka Destekli On Analiz Raporu", MARGIN, y);
-  y += 7;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...dark);
-  const safeFileName = sanitizePdfText(fileName);
-  const fileLines = doc.splitTextToSize(`Analiz Edilen Belge: ${safeFileName}`, CW);
-  doc.text(fileLines, MARGIN, y);
-  y += fileLines.length * LH + 1;
-
+): void {
   const now = new Date();
-  const dateStr = now.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(...grey);
-  doc.text(`Analiz Tarihi: ${dateStr}`, MARGIN, y);
-  y += 11;
+  const dateStr = now.toLocaleString("tr-TR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 
-  // ── SECTIONS ──────────────────────────────────────────────────────────────
   const renderSections = sections.length > 0
     ? sections
     : [{ label: "Analiz Sonucu", lines: rawText.split("\n").filter(Boolean) }];
 
-  renderSections.forEach((section, idx) => {
-    ensureSpace(20);
+  const sectionsHtml = renderSections.map((sec) => {
+    const label = stripEmojis(sec.label).replace(/^[:\-\s]+/, "").trim();
+    const bodyHtml = renderLinesHtml(sec.lines);
+    return `
+      <div class="section">
+        <div class="section-title">${escHtml(label)}</div>
+        <div class="section-body">${bodyHtml}</div>
+      </div>`;
+  }).join("\n");
 
-    // Gold divider between sections (not before first)
-    if (idx > 0) {
-      doc.setDrawColor(...gold);
-      doc.setLineWidth(0.3);
-      doc.line(MARGIN, y - 2, PAGE_W - MARGIN, y - 2);
-      y += 3;
+  const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kentsel Dönüşüm Rehberi — Analiz Raporu</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #ffffff;
+      color: #2D2D2D;
+      font-size: 13px;
+      line-height: 1.65;
     }
-
-    // Section heading — bold navy text, no filled background
-    const sLabel = sanitizePdfText(section.label);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(...navy);
-    doc.text(sLabel, MARGIN, y);
-    y += 6;
-
-    // Section content lines
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.setTextColor(...dark);
-
-    for (const rawLine of section.lines) {
-      const line = sanitizePdfText(rawLine);
-      if (!line) continue;
-
-      const isBullet = line.startsWith("•") || line.startsWith("-") || line.startsWith(">>") || /^\[.+\]/.test(line);
-      const bodyText = isBullet ? line.replace(/^[•\->>]+\s*/, "") : line;
-      const textWidth = CW - (isBullet ? 8 : 2);
-      const wrapped = doc.splitTextToSize(bodyText, textWidth);
-      ensureSpace(wrapped.length * LH + 2);
-
-      if (isBullet) {
-        doc.setTextColor(...gold);
-        doc.text("*", MARGIN + 1, y);
-        doc.setTextColor(...dark);
-        doc.text(wrapped, MARGIN + 6, y);
-        y += wrapped.length * LH + 1;
-      } else {
-        doc.text(wrapped, MARGIN + 2, y);
-        y += wrapped.length * LH + 1;
-      }
+    .header {
+      background: #1B2E4B;
+      color: #ffffff;
+      padding: 28px 36px 22px;
     }
-    y += 5;
-  });
+    .header h1 { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+    .header .subtitle { font-size: 11px; color: #C9A84C; font-style: italic; }
+    .gold-bar { height: 4px; background: #C9A84C; }
+    .meta {
+      padding: 14px 36px;
+      background: #F8F7F4;
+      border-bottom: 1px solid #E8E3DC;
+    }
+    .meta p { font-size: 12px; color: #555; margin-bottom: 3px; }
+    .meta strong { color: #1B2E4B; }
+    .content { padding: 28px 36px; }
+    .section { margin-bottom: 28px; page-break-inside: avoid; }
+    .section-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #1B2E4B;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #C9A84C;
+    }
+    .section-body p { margin-bottom: 7px; }
+    .section-body ul { margin: 4px 0 8px 20px; }
+    .section-body li { margin-bottom: 5px; }
+    .section-body .md-h {
+      font-size: 13px;
+      font-weight: bold;
+      color: #1B2E4B;
+      margin: 10px 0 6px;
+    }
+    .section-body strong { font-weight: bold; }
+    .footer {
+      margin-top: 20px;
+      padding: 16px 36px 24px;
+      background: #F8F7F4;
+      border-top: 1px solid #E8E3DC;
+    }
+    .footer .disclaimer { font-size: 10px; color: #6B7280; margin-bottom: 6px; }
+    .footer .site { font-size: 11px; font-weight: bold; color: #C9A84C; }
+    .footer .date { font-size: 10px; color: #9CA3AF; margin-top: 2px; }
+    .print-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #1B2E4B;
+      color: #C9A84C;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 999;
+      font-size: 13px;
+    }
+    .print-bar span { color: #ffffff; font-size: 12px; }
+    .print-btn {
+      background: #C9A84C;
+      color: #1B2E4B;
+      border: none;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .print-btn:hover { background: #b8973e; }
+    .print-spacer { height: 48px; }
+    @media print {
+      .print-bar, .print-spacer { display: none !important; }
+      body { font-size: 12px; }
+      .header { padding: 20px 28px 16px; }
+      .content { padding: 20px 28px; }
+      .footer { padding: 12px 28px 16px; }
+      .section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-bar">
+    <span>Kentsel Dönüşüm Rehberi — Analiz Raporu</span>
+    <button class="print-btn" onclick="window.print()">Yazdır / PDF Kaydet</button>
+  </div>
+  <div class="print-spacer"></div>
 
-  renderFooter();
+  <div class="header">
+    <h1>Kentsel Dönüşüm Rehberi</h1>
+    <div class="subtitle">Yapay Zeka Destekli Ön Analiz Raporu</div>
+  </div>
+  <div class="gold-bar"></div>
 
-  const slug = sanitizePdfText(fileName.replace(/\.pdf$/i, ""))
-    .replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
-  doc.save(`KDR_Analiz_${slug}.pdf`);
+  <div class="meta">
+    <p><strong>Analiz Edilen Belge:</strong> ${escHtml(fileName)}</p>
+    <p><strong>Analiz Tarihi:</strong> ${escHtml(dateStr)}</p>
+  </div>
+
+  <div class="content">
+    ${sectionsHtml}
+  </div>
+
+  <div class="footer">
+    <p class="disclaimer">Bu rapor genel bilgilendirme amacıyla hazırlanmıştır. Kesin hukuki veya mühendislik kararı niteliği taşımaz. Önemli kararlar için lisanslı uzman görüşü alınız.</p>
+    <p class="site">kentseldonusumrehberi.com</p>
+    <p class="date">Rapor tarihi: ${escHtml(dateStr)}</p>
+  </div>
+
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () { window.print(); }, 400);
+    });
+  </script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("Lütfen açılır pencere engelleyicisini devre dışı bırakın ve tekrar deneyin.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
 }
 
 async function extractPdfText(file: File): Promise<string> {
@@ -830,10 +874,10 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
 
           {/* 📥 Download report button */}
           <button
-            onClick={async () => {
+            onClick={() => {
               setIsGeneratingReport(true);
               try {
-                await downloadPdfReport(fileName, pdfSections, pdfAnswer);
+                openPrintReport(fileName, pdfSections, pdfAnswer);
               } catch (e) {
                 console.error("Report generation failed:", e);
               } finally {
