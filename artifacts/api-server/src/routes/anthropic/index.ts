@@ -174,9 +174,15 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
     const parsed = await pdfParse(pdfBuffer);
     const fullText = (parsed?.text ?? "").trim();
 
+    // Send page count so the frontend can show a large-doc warning
+    send({ type: "pages", count: parsed?.numpages ?? 0 });
+
     const chunks = fullText.length > 100
       ? splitIntoChunks(fullText, 3000)
       : null;
+
+    // Signal that chunking is about to start
+    send({ type: "chunking", total: chunks ? chunks.length : 1 });
 
     const totalChunks = chunks ? chunks.length : 1;
     send({ type: "progress", current: 0, total: totalChunks });

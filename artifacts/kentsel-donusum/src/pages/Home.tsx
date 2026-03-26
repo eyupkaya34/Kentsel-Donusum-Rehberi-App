@@ -157,6 +157,9 @@ interface PdfCallbacks {
   onChunk: (text: string) => void;
   onProgress: (current: number, total: number) => void;
   onFinalStart: () => void;
+  onConnected: () => void;
+  onPages: (count: number) => void;
+  onChunking: () => void;
 }
 
 async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
@@ -167,6 +170,9 @@ async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
     body: JSON.stringify({ pdf: base64, filename: file.name }),
   });
   if (!res.ok || !res.body) throw new Error("Analiz başlatılamadı.");
+
+  // SSE connection established — backend is now reading the PDF
+  cb.onConnected();
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -183,7 +189,9 @@ async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
       if (line.startsWith("data: ")) {
         try {
           const payload = JSON.parse(line.slice(6));
-          if (payload.type === "progress") cb.onProgress(payload.current, payload.total);
+          if (payload.type === "pages") cb.onPages(payload.count);
+          else if (payload.type === "chunking") cb.onChunking();
+          else if (payload.type === "progress") cb.onProgress(payload.current, payload.total);
           else if (payload.type === "final_start") cb.onFinalStart();
           else if (payload.content) cb.onChunk(payload.content);
           else if (payload.error) serverError = payload.error;
@@ -205,6 +213,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [pdfError, setPdfError] = useState("");
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [pageCount, setPageCount] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
@@ -216,6 +226,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setPdfError("");
     setProgress(null);
     setIsFinalizing(false);
+    setStatusMsg("");
+    setPageCount(null);
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -235,13 +247,35 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setPdfError("");
     setProgress(null);
     setIsFinalizing(false);
+    setPageCount(null);
+    setStatusMsg("📄 Belgeniz yükleniyor...");
     try {
       await analyzePdf(pdfFile, {
-        onProgress: (current, total) => setProgress({ current, total }),
-        onFinalStart: () => setIsFinalizing(true),
+        onConnected: () => {
+          setStatusMsg("🔍 Belge okunuyor ve hazırlanıyor... Bu işlem belge boyutuna göre 1-2 dakika sürebilir.");
+        },
+        onPages: (count) => {
+          setPageCount(count);
+        },
+        onChunking: () => {
+          setStatusMsg("⚙️ Belge bölümlere ayrılıyor ve analiz için hazırlanıyor...");
+        },
+        onProgress: (current, total) => {
+          setProgress({ current, total });
+          if (current > 0) {
+            setStatusMsg(`🤖 Bölüm ${current} / ${total} analiz ediliyor... Lütfen bekleyin.`);
+          }
+        },
+        onFinalStart: () => {
+          setIsFinalizing(true);
+          setStatusMsg("📝 Tüm bölümler tamamlandı. Nihai rapor hazırlanıyor... Bu adım 1-2 dakika sürebilir.");
+        },
         onChunk: (chunk) => {
           setPdfAnswer((prev) => {
-            if (prev === "") setPdfState("done");
+            if (prev === "") {
+              setPdfState("done");
+              setStatusMsg("✅ Analiz tamamlandı!");
+            }
             return prev + chunk;
           });
         },
@@ -251,6 +285,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       const msg = e instanceof Error ? e.message : "Analiz sırasında bir hata oluştu.";
       setPdfError(msg);
       setPdfState("selected");
+      setStatusMsg("");
     }
   };
 
@@ -262,6 +297,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setPdfError("");
     setProgress(null);
     setIsFinalizing(false);
+    setStatusMsg("");
+    setPageCount(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -350,37 +387,37 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
 
       {/* Analyzing state */}
       {pdfState === "analyzing" && (
-        <div className="border-2 border-dashed border-blue-200 rounded-xl bg-blue-50 p-6 flex flex-col items-center gap-4">
-          <span className="inline-block w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-
-          {isFinalizing ? (
-            <>
-              <p className="text-sm font-semibold text-blue-700">Nihai analiz hazırlanıyor...</p>
-              <p className="text-xs text-blue-500">Tüm bölümler birleştiriliyor</p>
-            </>
-          ) : progress ? (
-            <>
-              <p className="text-sm font-semibold text-blue-700">
-                Belge analiz ediliyor... (Bölüm {progress.current}/{progress.total} işleniyor)
+        <div className="flex flex-col gap-3">
+          {/* Large document warning */}
+          {pageCount !== null && pageCount > 10 && (
+            <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <span className="text-base leading-none mt-0.5">⏳</span>
+              <p className="text-sm text-amber-800 leading-snug">
+                Büyük bir belge yüklediniz ({pageCount} sayfa). Tam analiz 5–10 dakika sürebilir. Lütfen sayfayı kapatmayın.
               </p>
-              <div className="w-full">
-                <div className="flex justify-between text-xs text-blue-500 mb-1.5">
-                  <span>{progress.current} / {progress.total} bölüm tamamlandı</span>
-                  <span>{Math.round((progress.current / progress.total) * 100)}%</span>
-                </div>
-                <div className="w-full bg-blue-100 rounded-full h-2">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
-                  />
-                </div>
+            </div>
+          )}
+
+          {/* Status notification box */}
+          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3.5">
+            <span className="inline-block w-5 h-5 min-w-[1.25rem] border-[2.5px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium text-blue-800 leading-snug">{statusMsg}</p>
+          </div>
+
+          {/* Progress bar — shown once chunking starts */}
+          {progress && (
+            <div className="bg-white border border-blue-100 rounded-xl px-4 py-3">
+              <div className="flex justify-between text-xs text-blue-500 mb-2">
+                <span>{progress.current} / {progress.total} bölüm tamamlandı</span>
+                <span>{Math.round((progress.current / progress.total) * 100)}%</span>
               </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-medium text-blue-700">PDF okunuyor...</p>
-              <p className="text-xs text-blue-500">Belge yükleniyor ve hazırlanıyor</p>
-            </>
+              <div className="w-full bg-blue-100 rounded-full h-2">
+                <div
+                  className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                />
+              </div>
+            </div>
           )}
         </div>
       )}
