@@ -686,14 +686,6 @@ export default function Home() {
             <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-lg mx-auto mb-5">
               Bina riskinizi öğrenin, haklarınızı anlayın ve sonraki adımları netleştirin.
             </p>
-            <ul className="inline-flex flex-col items-start gap-2 text-sm text-[#2D2D2D]">
-              {["Binanızın risklerini anlayın", "Haklarınızı öğrenin", "Doğru adımları planlayın"].map((item) => (
-                <li key={item} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] flex-shrink-0 mt-0.5" />
-                  {item}
-                </li>
-              ))}
-            </ul>
           </div>
 
           {/* Guidance Buttons */}
