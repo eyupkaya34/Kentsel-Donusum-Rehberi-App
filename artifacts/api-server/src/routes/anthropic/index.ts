@@ -13,7 +13,15 @@ const ANALYSIS_SYSTEM = `Sen Türkiye'de kentsel dönüşüm ve yapı denetimi k
 🔹 Olası Riskler
 🔹 Eksik Bilgiler
 🔹 Önerilen Sonraki Adımlar
-🔹 Güven Seviyesi %`;
+🔹 Güven Seviyesi %
+
+Güven Seviyesini hesaplarken şu kriterleri kullan:
+- Tüm ekler mevcut ve eksiksiz ise +20 puan
+- Cezai şartlar dengeli ise +20 puan
+- Süreler gerçekçi ise +20 puan
+- Tarafların bilgileri tam ise +20 puan
+- Hukuki riskler düşük ise +20 puan
+Toplam = Güven Seviyesi. Tutarlı ve gerekçeli sonuç ver.`;
 
 // ── Conversations API ──────────────────────────────────────────────────────────
 router.get("/conversations", async (req: Request, res: Response) => {

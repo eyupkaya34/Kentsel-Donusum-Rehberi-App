@@ -244,6 +244,22 @@ function formatInline(raw: string): string {
   return s;
 }
 
+function cleanMdLine(raw: string): string {
+  return raw
+    .replace(/^>+\s*/, "")
+    .replace(/^--+$/, "")
+    .replace(/^#+\s*/, "")
+    .replace(/^\*{1,3}\s+/, "")
+    .replace(/^!\s*/, "")
+    .trim();
+}
+
+function tableRowToBullets(line: string): string[] {
+  if (!line.includes("|")) return [];
+  if (/^\|[\s\-:]+\|/.test(line)) return [];
+  return line.split("|").map(c => c.trim()).filter(Boolean);
+}
+
 function renderLinesHtml(lines: string[]): string {
   let html = "";
   let inList = false;
@@ -253,22 +269,27 @@ function renderLinesHtml(lines: string[]): string {
   };
 
   for (const rawLine of lines) {
-    let line = rawLine
-      .replace(/^>+\s*/, "")
-      .replace(/^--+$/, "")
-      .trim();
+    const line = cleanMdLine(rawLine);
 
     if (!line) { closeList(); continue; }
 
-    const headingMatch = line.match(/^(#{1,3})\s+(.*)/);
+    if (line.includes("|")) {
+      const cells = tableRowToBullets(line);
+      if (cells.length > 0) {
+        if (!inList) { html += "<ul>"; inList = true; }
+        cells.forEach(cell => { html += `<li>${formatInline(stripEmojis(cell))}</li>`; });
+        continue;
+      }
+    }
+
+    const headingMatch = rawLine.trim().match(/^(#{1,3})\s+(.*)/);
     if (headingMatch) {
       closeList();
-      const level = Math.min(headingMatch[1].length + 2, 6);
-      html += `<h${level} class="md-h">${formatInline(stripEmojis(headingMatch[2]))}</h${level}>`;
+      html += `<p class="md-h">${formatInline(stripEmojis(headingMatch[2]))}</p>`;
       continue;
     }
 
-    if (/^[\*\-•]\s/.test(line)) {
+    if (/^[\*\-•]\s/.test(rawLine.trim())) {
       if (!inList) { html += "<ul>"; inList = true; }
       html += `<li>${formatInline(stripEmojis(line.replace(/^[\*\-•]\s*/, "")))}</li>`;
       continue;
@@ -973,6 +994,12 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [fileInfo, setFileInfo] = useState<string | null>(null);
   const [softWarning, setSoftWarning] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [starRating, setStarRating] = useState(0);
+  const [starHover, setStarHover] = useState(0);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pdfStreamRef = useRef<string>("");
@@ -1308,37 +1335,127 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
 
       {/* Result */}
       {pdfState === "done" && pdfAnswer && (
-        <div className="flex flex-col gap-3">
-          {/* ✅ Completion banner + download button */}
+        <div
+          className="flex flex-col gap-3 animate-[fadeInUp_0.5s_ease_both]"
+          style={{ animation: "fadeInUp 0.5s ease both" }}
+        >
+          <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+          {/* ✅ Completion banner */}
           <div className="flex items-center gap-3 rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-4 shadow-sm">
             <span className="text-lg flex-shrink-0">✅</span>
             <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">Analiz tamamlandı!</p>
           </div>
 
-          {/* 📥 Download report button */}
+          {/* 📥 Download report button — GOLD */}
           <button
-            onClick={() => {
-              setIsGeneratingReport(true);
-              try {
-                openPrintReport(fileName, pdfSections, pdfAnswer);
-              } catch (e) {
-                console.error("Report generation failed:", e);
-              } finally {
-                setIsGeneratingReport(false);
-              }
-            }}
-            disabled={isGeneratingReport}
-            className="w-full flex items-center justify-center gap-2 bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] disabled:opacity-60 disabled:cursor-not-allowed text-[#C9A84C] font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-md border border-[#C9A84C]/30"
+            onClick={() => { setShowPaymentModal(true); setPaymentError(""); }}
+            className="w-full flex items-center justify-center gap-2 bg-[#C9A84C] hover:bg-[#b8923e] active:bg-[#a07830] text-[#1B2E4B] font-extrabold py-4 rounded-xl transition-all duration-200 text-base shadow-lg border-2 border-[#C9A84C]"
           >
-            {isGeneratingReport ? (
-              <>
-                <span className="inline-block w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-                <span>Rapor hazırlanıyor...</span>
-              </>
-            ) : (
-              <span>📥 Raporu İndir — 49,99 TL</span>
-            )}
+            <span>📥 Raporu İndir — 49,99 TL</span>
           </button>
+
+          {/* Payment Modal */}
+          {showPaymentModal && (
+            <div
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowPaymentModal(false)}
+            >
+              <div
+                className="relative w-full max-w-sm bg-white rounded-2xl shadow-[0_8px_40px_rgba(27,46,75,0.3)] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal header */}
+                <div className="bg-[#1B2E4B] px-6 py-5 border-b-2 border-[#C9A84C]">
+                  <h2 className="text-lg font-extrabold text-white">Raporunuzu İndirin</h2>
+                  <p className="text-[#C9A84C] text-sm font-semibold mt-0.5">49,99 TL</p>
+                </div>
+
+                {/* Benefits list */}
+                <div className="px-6 py-5 flex flex-col gap-3">
+                  <ul className="flex flex-col gap-2.5">
+                    {[
+                      "8 sayfalık profesyonel PDF rapor",
+                      "Risk değerlendirmesi ve güven skoru",
+                      "Uzman yönlendirme kontrol listesi",
+                      "Hemen indirin, dilediğinizle paylaşın",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2 text-sm text-[#2D2D2D]">
+                        <span className="text-green-600 font-bold flex-shrink-0 mt-0.5">✓</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {paymentError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{paymentError}</p>
+                  )}
+
+                  {/* Pay button */}
+                  <button
+                    onClick={async () => {
+                      setPaymentLoading(true);
+                      setPaymentError("");
+                      try {
+                        const res = await fetch(`${BASE}/api/payment/create-payment`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({}),
+                        });
+                        const data = await res.json();
+                        if (data.testMode) {
+                          setShowPaymentModal(false);
+                          setIsGeneratingReport(true);
+                          try { openPrintReport(fileName, pdfSections, pdfAnswer); } catch {}
+                          setIsGeneratingReport(false);
+                        } else if (data.paymentPageUrl) {
+                          window.open(data.paymentPageUrl, "_blank");
+                          setShowPaymentModal(false);
+                        } else {
+                          setPaymentError(data.error ?? "Ödeme başlatılamadı. Lütfen tekrar deneyin.");
+                        }
+                      } catch {
+                        setPaymentError("Ödeme başarısız. Lütfen tekrar deneyin.");
+                      } finally {
+                        setPaymentLoading(false);
+                      }
+                    }}
+                    disabled={paymentLoading}
+                    className="w-full bg-[#C9A84C] hover:bg-[#b8923e] text-[#1B2E4B] font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {paymentLoading ? (
+                      <><span className="inline-block w-4 h-4 border-2 border-[#1B2E4B] border-t-transparent rounded-full animate-spin" /> Hazırlanıyor...</>
+                    ) : "Ödemeye Geç →"}
+                  </button>
+
+                  {/* Test bypass */}
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setIsGeneratingReport(true);
+                      try { openPrintReport(fileName, pdfSections, pdfAnswer); } catch {}
+                      setIsGeneratingReport(false);
+                    }}
+                    className="text-xs text-[#9CA3AF] hover:text-[#6B7280] underline transition text-center"
+                  >
+                    Test: Ödemeyi Atla ve İndir (Geliştirici Modu)
+                  </button>
+
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#9CA3AF]">
+                    <span>🔒</span>
+                    <span>256-bit SSL ile güvenli ödeme</span>
+                  </div>
+
+                  <button
+                    onClick={() => setShowPaymentModal(false)}
+                    className="text-xs text-[#9CA3AF] hover:text-[#6B7280] transition text-center underline"
+                  >
+                    Vazgeç
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold text-[#1B2E4B] uppercase tracking-widest">Belge Analiz Sonucu</p>
@@ -1364,6 +1481,45 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
             <MdBlock text={pdfAnswer} className="text-sm text-[#2D2D2D]" />
           )}
 
+          {/* Star rating */}
+          <div className="rounded-xl border border-[#E8E3DC] bg-[#FAFAF8] px-5 py-4 flex flex-col gap-2 items-center">
+            {!ratingSubmitted ? (
+              <>
+                <p className="text-sm font-semibold text-[#1B2E4B]">Bu analiz size yardımcı oldu mu?</p>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onMouseEnter={() => setStarHover(star)}
+                      onMouseLeave={() => setStarHover(0)}
+                      onClick={() => { setStarRating(star); setRatingSubmitted(true); }}
+                      className="text-2xl transition-transform hover:scale-110 focus:outline-none"
+                      aria-label={`${star} yıldız`}
+                    >
+                      <span style={{ color: star <= (starHover || starRating) ? "#C9A84C" : "#D1D5DB" }}>★</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <span key={s} style={{ color: s <= starRating ? "#C9A84C" : "#D1D5DB", fontSize: "20px" }}>★</span>
+                  ))}
+                </div>
+                <p className="text-sm font-semibold text-[#1B2E4B]">Teşekkürler!</p>
+                <p className="text-xs text-[#6B7280]">Uzman desteği için bize ulaşın.</p>
+                <button
+                  onClick={onExpert}
+                  className="mt-1 bg-[#1B2E4B] hover:bg-[#243d63] text-[#C9A84C] text-xs font-bold px-4 py-2 rounded-lg transition"
+                >
+                  Uzmanla Görüş
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Expert CTA — show only when full result is parsed */}
           {pdfSections.length > 0 && (
             <div className="mt-1 rounded-xl bg-gradient-to-r from-[#1B2E4B] to-[#243d63] p-5 flex flex-col gap-3">
@@ -1380,6 +1536,28 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
               </button>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── FAQ Item ───────────────────────────────────────────────────────────────────
+
+function FaqItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white border border-[#E8E3DC] rounded-xl overflow-hidden hover:border-[#C9A84C] transition-colors">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-left px-5 py-4 flex items-center justify-between gap-3"
+      >
+        <span className="text-sm font-semibold text-[#1B2E4B]">S: {question}</span>
+        <span className="text-[#C9A84C] font-bold text-lg flex-shrink-0">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <div className="px-5 pb-4 pt-0">
+          <p className="text-sm text-[#6B7280] leading-relaxed border-t border-[#E8E3DC] pt-3">C: {answer}</p>
         </div>
       )}
     </div>
@@ -1433,13 +1611,31 @@ export default function Home() {
         <div className="w-full max-w-2xl flex flex-col gap-8">
 
           {/* Hero */}
-          <div className="text-center px-2 pt-2 pb-6">
+          <div className="text-center px-2 pt-2 pb-2">
             <h1 className="text-[2rem] sm:text-[2.5rem] font-extrabold text-[#1B2E4B] leading-[1.2] tracking-tight mb-3">
               Aklınıza Takılan Her Şeyi<br className="hidden sm:block" /> Sade ve Anlaşılır Şekilde Öğrenin
             </h1>
-            <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-lg mx-auto mb-5">
+            <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-lg mx-auto mb-4">
               Bina riskinizi öğrenin, haklarınızı anlayın ve sonraki adımları netleştirin.
             </p>
+            {/* Counter */}
+            <div className="inline-flex items-center gap-2 bg-[#F0F4FA] border border-[#C5D3E8] rounded-full px-4 py-2 mb-5">
+              <span className="text-sm font-bold text-[#1B2E4B]">1.000+</span>
+              <span className="text-sm text-[#6B7280]">Belge Analiz Edildi</span>
+            </div>
+            {/* Trust badges */}
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {[
+                { icon: "🔒", label: "SSL Güvenli" },
+                { icon: "⚡", label: "Anında Analiz" },
+                { icon: "🇹🇷", label: "Türkiye'de Geliştirildi" },
+              ].map(({ icon, label }) => (
+                <span key={label} className="flex items-center gap-1.5 text-xs text-[#6B7280] bg-white border border-[#E8E3DC] rounded-full px-3 py-1.5 shadow-sm">
+                  <span>{icon}</span>
+                  <span className="font-medium">{label}</span>
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* Guidance Buttons */}
@@ -1530,7 +1726,8 @@ export default function Home() {
             )}
 
             {rawAnswer && parsedSections.length > 0 && (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3" style={{ animation: "fadeInUp 0.5s ease both" }}>
+                <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style>
                 {parsedSections.map((section) => (
                   <AnswerSection key={section.label} {...section} />
                 ))}
@@ -1587,6 +1784,33 @@ export default function Home() {
                   <span className="text-[#C9A84C] font-bold text-sm">✓</span>
                   <span className="text-sm text-[#2D2D2D] font-medium">{item}</span>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="flex flex-col gap-4">
+            <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest px-1">Sık Sorulan Sorular</p>
+            <div className="flex flex-col gap-2">
+              {[
+                {
+                  q: "Bu uygulama hukuki tavsiye veriyor mu?",
+                  a: "Hayır. Genel bilgilendirme amaçlıdır. Uzman görüşü değildir.",
+                },
+                {
+                  q: "Yüklediğim belgeler saklanıyor mu?",
+                  a: "Hayır. Belgeler analiz sonrası otomatik olarak silinir.",
+                },
+                {
+                  q: "Hangi belgeler analiz edilebilir?",
+                  a: "Sözleşmeler, teknik şartnameler, raporlar ve resmi yazışmalar.",
+                },
+                {
+                  q: "Raporu kim görebilir?",
+                  a: "Yalnızca siz. Raporlar şifreli bağlantı ile iletilir.",
+                },
+              ].map(({ q, a }) => (
+                <FaqItem key={q} question={q} answer={a} />
               ))}
             </div>
           </div>

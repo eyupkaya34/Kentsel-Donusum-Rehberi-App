@@ -31,7 +31,7 @@ function WelcomeModal({ isFirstVisit, onAccept, onClose }: WelcomeModalProps) {
     >
       {/* Modal card — stop propagation so clicking inside doesn't close */}
       <div
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_8px_40px_rgba(27,46,75,0.25)] overflow-hidden flex flex-col"
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_8px_40px_rgba(27,46,75,0.25)] overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header stripe */}

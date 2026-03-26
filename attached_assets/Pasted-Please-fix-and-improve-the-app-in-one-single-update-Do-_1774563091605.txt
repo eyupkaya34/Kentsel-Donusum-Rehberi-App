@@ -1,0 +1,105 @@
+Please fix and improve the app in one single update. 
+Do all of these together:
+
+═══════════════════════════════
+1. PDF REPORT FIXES
+═══════════════════════════════
+
+Clean all markdown before writing to PDF:
+- Remove ##, ###, #, --, !, * , ** symbols
+- Convert markdown tables to simple bullet lists
+- Remove blank pages — never create empty pages
+- Fix footer URL everywhere: kentseldonusumrehber.com.tr
+  Remove the long Replit URL completely
+
+Fix inconsistent risk score by adding this to system prompt:
+"Güven Seviyesini hesaplarken şu kriterleri kullan:
+- Tüm ekler mevcut ve eksiksiz ise +20 puan
+- Cezai şartlar dengeli ise +20 puan
+- Süreler gerçekçi ise +20 puan
+- Tarafların bilgileri tam ise +20 puan
+- Hukuki riskler düşük ise +20 puan
+Toplam = Güven Seviyesi. Tutarlı ve gerekçeli sonuç ver."
+
+═══════════════════════════════
+2. APP POLISHING
+═══════════════════════════════
+
+- Fix all Turkish characters displaying incorrectly anywhere in the app
+- Make sure the welcome popup looks clean on mobile screens
+- Add smooth fade-in animation when analysis result appears
+- Make the download button gold and more prominent:
+  "📥 Raporu İndir — 49,99 TL"
+- Add a small star rating section below the result:
+  "Bu analiz size yardımcı oldu mu?"
+  Show 5 clickable stars
+  After rating show: "Teşekkürler! Uzman desteği için bize ulaşın."
+- Make sure all pages (KVKK, Kullanım Koşulları) 
+  are mobile friendly
+- Fix any broken layouts on small screens
+
+═══════════════════════════════
+3. PAYMENT SYSTEM — İYZİCO
+═══════════════════════════════
+
+Add a payment flow for the PDF download:
+
+STEP 1 — After analysis completes, show the download button:
+"📥 Raporu İndir — 49,99 TL"
+(gold button, navy text, prominent)
+
+STEP 2 — When clicked, show a payment modal popup with:
+- Title: "Raporunuzu İndirin"
+- Price clearly shown: 49,99 TL
+- What they get:
+  ✓ 8 sayfalık profesyonel PDF rapor
+  ✓ Risk değerlendirmesi ve güven skoru
+  ✓ Uzman yönlendirme kontrol listesi
+  ✓ Hemen indirin, dilediğinizle paylaşın
+- A "Ödemeye Geç →" button in gold
+- A small text: "256-bit SSL ile güvenli ödeme"
+- A cancel link: "Vazgeç"
+
+STEP 3 — İyzico integration:
+- Create a backend endpoint: POST /api/create-payment
+- Use İyzico sandbox for now (test mode)
+- İyzico API credentials will be added later as environment variables:
+  IYZICO_API_KEY and IYZICO_SECRET_KEY
+- Payment amount: 4999 (kuruş = 49.99 TL)
+- Currency: TRY
+- After successful payment confirmation from İyzico:
+  automatically trigger the PDF download
+- If payment fails show:
+  "Ödeme başarısız. Lütfen tekrar deneyin."
+
+STEP 4 — For now in TEST MODE:
+- Add a test button below the payment modal:
+  "Test: Ödemeyi Atla ve İndir (Geliştirici Modu)"
+  This bypasses payment and downloads directly
+  So we can keep testing the PDF while building payment
+
+Install iyzipay npm package for the backend.
+
+═══════════════════════════════
+4. TRUST SIGNALS
+═══════════════════════════════
+
+Add these small trust elements to the homepage:
+- A counter below the hero: "1.000+ Belge Analiz Edildi"
+  (hardcoded for now, we will make it real later)
+- Three small trust badges in a row:
+  🔒 SSL Güvenli  |  ⚡ Anında Analiz  |  🇹🇷 Türkiye'de Geliştirildi
+- A simple FAQ section at the bottom with 4 questions:
+  S: Bu uygulama hukuki tavsiye veriyor mu?
+  C: Hayır. Genel bilgilendirme amaçlıdır. Uzman görüşü değildir.
+  
+  S: Yüklediğim belgeler saklanıyor mu?
+  C: Hayır. Belgeler analiz sonrası otomatik olarak silinir.
+  
+  S: Hangi belgeler analiz edilebilir?
+  C: Sözleşmeler, teknik şartnameler, raporlar ve resmi yazışmalar.
+  
+  S: Raporu kim görebilir?
+  C: Yalnızca siz. Raporlar şifreli bağlantı ile iletilir.
+
+Please implement everything above in one update and restart.

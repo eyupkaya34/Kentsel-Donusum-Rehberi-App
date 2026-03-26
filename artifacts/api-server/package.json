@@ -17,6 +17,7 @@
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "iyzipay": "^2.0.65",
     "pdf-parse": "1.1.1",
     "pino": "^9",
     "pino-http": "^10"
