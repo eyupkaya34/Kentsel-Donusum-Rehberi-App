@@ -232,9 +232,11 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
             `Chunk ${i + 1}`
           );
           done++;
+          const chunkText = msg.content[0]?.type === "text" ? msg.content[0].text : "";
           send({ type: "progress", current: done, total });
+          send({ type: "chunk_result", index: i, total, text: chunkText });
           console.log(`[analyze-pdf]   chunk ${i + 1}/${total} done (running total: ${((Date.now() - t2) / 1000).toFixed(1)}s)`);
-          return msg.content[0]?.type === "text" ? msg.content[0].text : "";
+          return chunkText;
         })
       );
       console.log(`[analyze-pdf] ✅ MEDIUM PATH chunks: ${((Date.now() - t2) / 1000).toFixed(2)}s`);
@@ -285,9 +287,11 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
             `Chunk ${i + 1}`
           );
           done++;
+          const chunkText = msg.content[0]?.type === "text" ? msg.content[0].text : "";
           send({ type: "progress", current: done, total });
+          send({ type: "chunk_result", index: i, total, text: chunkText });
           console.log(`[analyze-pdf]   chunk ${i + 1}/${total} done (running total: ${((Date.now() - t2) / 1000).toFixed(1)}s)`);
-          return msg.content[0]?.type === "text" ? msg.content[0].text : "";
+          return chunkText;
         })
       );
       console.log(`[analyze-pdf] ✅ SLOW PATH chunks: ${((Date.now() - t2) / 1000).toFixed(2)}s`);

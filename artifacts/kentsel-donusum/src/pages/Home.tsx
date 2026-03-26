@@ -222,6 +222,7 @@ interface PdfCallbacks {
   onConnected: () => void;
   onPages: (count: number) => void;
   onChunking: () => void;
+  onChunkResult: (index: number, total: number, text: string) => void;
 }
 
 async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
@@ -255,6 +256,7 @@ async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
           else if (payload.type === "chunking") cb.onChunking();
           else if (payload.type === "progress") cb.onProgress(payload.current, payload.total);
           else if (payload.type === "final_start") cb.onFinalStart();
+          else if (payload.type === "chunk_result") cb.onChunkResult(payload.index, payload.total, payload.text);
           else if (payload.content) cb.onChunk(payload.content);
           else if (payload.error) serverError = payload.error;
         } catch {}
@@ -281,6 +283,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [pct, setPct] = useState(0);
   const [tipIdx, setTipIdx] = useState(0);
   const [tipVisible, setTipVisible] = useState(true);
+  const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
+  const [chunkResults, setChunkResults] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Rotate tips every 4 seconds while analyzing, with a smooth fade
@@ -327,6 +331,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setProgress(null);
     setIsFinalizing(false);
     setPageCount(null);
+    setEstimatedTime(null);
+    setChunkResults([]);
     setStatusMsg("📄 Belgeniz yükleniyor...");
     setPct(0);
     setTipIdx(0);
@@ -339,8 +345,13 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         },
         onPages: (count) => {
           setPageCount(count);
-          if (count > 10) {
-            setStatusMsg(`⏳ Büyük bir belge yüklediniz (${count} sayfa). Tam analiz 5–10 dakika sürebilir. Lütfen sayfayı kapatmayın.`);
+          if (count < 5) {
+            setEstimatedTime("Tahmini süre: 20-30 saniye");
+          } else if (count <= 10) {
+            setEstimatedTime("Tahmini süre: 30-60 saniye");
+          } else {
+            setEstimatedTime("Tahmini süre: 2-4 dakika");
+            setStatusMsg(`⏳ Büyük bir belge (${count} sayfa). Lütfen sayfayı kapatmayın.`);
           }
         },
         onChunking: () => {
@@ -361,6 +372,11 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         },
         onChunk: (chunk) => {
           setPdfAnswer((prev) => prev + chunk);
+        },
+        onChunkResult: (_index, _total, text) => {
+          if (text.trim()) {
+            setChunkResults((prev) => [...prev, text]);
+          }
         },
       });
       setPct(100);
@@ -387,6 +403,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setPct(0);
     setTipIdx(0);
     setTipVisible(true);
+    setEstimatedTime(null);
+    setChunkResults([]);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -522,6 +540,11 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
               <span className="mt-0.5 flex-shrink-0 inline-block w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
               <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">{statusMsg || "📄 Belgeniz yükleniyor..."}</p>
             </div>
+
+            {/* Estimated time */}
+            {estimatedTime && (
+              <p className="text-xs text-[#9CA3AF] text-center">{estimatedTime}</p>
+            )}
           </div>
 
           {/* ── Smooth percentage progress bar ─────────────────────────────── */}
@@ -549,11 +572,31 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
             <p className="text-xs text-[#5C4A1E] leading-relaxed">{TIPS[tipIdx]}</p>
           </div>
 
-          {/* ── Streaming preview ─────────────────────────────────────────── */}
+          {/* ── Partial chunk results (appear as each chunk finishes) ─────── */}
+          {chunkResults.length > 0 && !isFinalizing && (
+            <div className="flex flex-col gap-3">
+              <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest">
+                Ön bulgular ({chunkResults.length} / {progress?.total ?? chunkResults.length} bölüm)
+              </p>
+              {chunkResults.map((text, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-[#E8E3DC] bg-[#FAFAF8] px-5 py-4 flex flex-col gap-1.5"
+                >
+                  <span className="text-[10px] font-semibold text-[#C9A84C] uppercase tracking-widest">
+                    Bölüm {i + 1} analizi
+                  </span>
+                  <MdBlock text={text} className="text-sm text-[#2D2D2D]" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Streaming preview (fast path / final synthesis stream) ──────── */}
           {pdfAnswer && (
             <div className="flex flex-col gap-2 pt-1">
               <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest">
-                Sonuç hazırlanıyor...
+                {isFinalizing ? "Nihai rapor hazırlanıyor..." : "Sonuç hazırlanıyor..."}
               </p>
               {pdfSections.length > 0 ? (
                 pdfSections.map((section) => (
