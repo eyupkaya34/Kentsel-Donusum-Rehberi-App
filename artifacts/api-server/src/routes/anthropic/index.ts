@@ -98,10 +98,10 @@ Yanıtını MUTLAKA aşağıdaki yapıda ver:
   res.end();
 });
 
-// ── PDF analysis — direct PDF-to-Claude, no text extraction, no chunking ───────
+// ── PDF analysis — frontend extracts text, backend sends as plain message ───────
 router.post("/analyze-pdf", async (req: Request, res: Response) => {
-  const { pdf, filename } = req.body as { pdf: string; filename: string };
-  if (!pdf) { res.status(400).json({ error: "PDF verisi eksik." }); return; }
+  const { text, filename } = req.body as { text: string; filename: string };
+  if (!text) { res.status(400).json({ error: "Belge metni eksik." }); return; }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -117,9 +117,8 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
   }, 120_000);
 
   try {
-    console.log(`[analyze-pdf] → Direct PDF send (${filename}) — single call, no chunking`);
+    console.log(`[analyze-pdf] → Text-based analysis (${filename}) — ${text.length} chars`);
 
-    // Signal the client that Claude is now receiving the PDF
     send({ type: "final_start" });
 
     const stream = anthropic.messages.stream({
@@ -128,20 +127,7 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
       system: ANALYSIS_SYSTEM,
       messages: [{
         role: "user",
-        content: [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: pdf,
-            },
-          } as Parameters<typeof anthropic.messages.stream>[0]["messages"][0]["content"][0],
-          {
-            type: "text",
-            text: "Bu belgeyi analiz et ve belirtilen formatta Türkçe rapor oluştur.",
-          },
-        ],
+        content: `Belge adı: ${filename}\n\nBelge içeriği:\n${text}`,
       }],
     });
 
