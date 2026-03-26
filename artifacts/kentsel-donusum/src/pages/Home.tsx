@@ -46,6 +46,17 @@ function MdBlock({ text, className }: { text: string; className?: string }) {
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+async function countPdfPages(file: File): Promise<number> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const text = new TextDecoder("latin1").decode(new Uint8Array(buffer));
+    const matches = text.match(/\/Type\s*\/Page(?!s)/g);
+    return matches ? matches.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function askClaude(question: string, onChunk: (text: string) => void): Promise<void> {
   const createRes = await fetch(`${BASE}/api/anthropic/conversations`, {
     method: "POST",
@@ -271,6 +282,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [tipIdx, setTipIdx] = useState(0);
   const [tipVisible, setTipVisible] = useState(true);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
+  const [fileInfo, setFileInfo] = useState<string | null>(null);
+  const [softWarning, setSoftWarning] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -287,8 +300,47 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     return () => clearInterval(interval);
   }, [pdfState]);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file || file.type !== "application/pdf") return;
+
+    const MB = 1024 * 1024;
+    const sizeMB = file.size / MB;
+    const sizeStr = sizeMB < 1 ? `${Math.round(sizeMB * 1024)} KB` : `${sizeMB.toFixed(1)} MB`;
+
+    // Hard limit: file size > 10 MB
+    if (file.size > 10 * MB) {
+      setFileName(file.name);
+      setPdfFile(null);
+      setPdfState("selected");
+      setPdfError("⚠️ Dosya boyutu 10MB sınırını aşmaktadır. Lütfen daha küçük bir dosya yükleyiniz.");
+      setFileInfo(null);
+      setSoftWarning(null);
+      return;
+    }
+
+    // Count pages before accepting
+    const pages = await countPdfPages(file);
+
+    // Hard limit: > 30 pages
+    if (pages > 30) {
+      setFileName(file.name);
+      setPdfFile(null);
+      setPdfState("selected");
+      setPdfError("⚠️ Belgeniz 30 sayfadan fazla içermektedir. Lütfen belgeyi bölüp en fazla 30 sayfalık bölümler halinde yükleyiniz.");
+      setFileInfo(null);
+      setSoftWarning(null);
+      return;
+    }
+
+    // Soft warning: 20–30 pages
+    if (pages >= 20) {
+      setSoftWarning(`📄 Uzun belge tespit edildi (${pages} sayfa). Analiz 2-3 dakika sürebilir. Lütfen sayfayı kapatmayın.`);
+    } else {
+      setSoftWarning(null);
+    }
+
+    const infoStr = pages > 0 ? `${pages} sayfa · ${sizeStr}` : sizeStr;
+    setFileInfo(infoStr);
     setFileName(file.name);
     setPdfFile(file);
     setPdfState("selected");
@@ -370,6 +422,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setTipIdx(0);
     setTipVisible(true);
     setEstimatedTime(null);
+    setFileInfo(null);
+    setSoftWarning(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -415,7 +469,9 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
               <span className="text-3xl">✅</span>
               <div className="text-center">
                 <p className="text-sm font-semibold text-green-700">{fileName}</p>
-                <p className="text-xs text-green-600 mt-0.5">Dosya yüklendi</p>
+                {fileInfo && (
+                  <p className="text-xs text-[#9CA3AF] mt-0.5">{fileInfo}</p>
+                )}
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); handleReset(); }}
@@ -446,8 +502,16 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         </div>
       )}
 
+      {/* Soft warning — 20–30 page documents */}
+      {pdfState === "selected" && softWarning && (
+        <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <span className="text-amber-500 text-sm flex-shrink-0 mt-0.5">⚠️</span>
+          <p className="text-xs text-amber-800 leading-relaxed">{softWarning}</p>
+        </div>
+      )}
+
       {/* KVKK consent checkbox */}
-      {pdfState === "selected" && (
+      {pdfState === "selected" && !pdfError && (
         <label className="flex items-start gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -469,10 +533,10 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       )}
 
       {/* Analyze button */}
-      {pdfState === "selected" && (
+      {pdfState === "selected" && !pdfError && (
         <button
           onClick={handleAnalyze}
-          disabled={!kvkkConsent}
+          disabled={!kvkkConsent || !pdfFile}
           className="w-full bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] disabled:bg-[#E8E3DC] disabled:text-[#A0A0A0] disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-sm"
         >
           Belgeyi Analiz Et
