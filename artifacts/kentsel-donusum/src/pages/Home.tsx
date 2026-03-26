@@ -157,7 +157,6 @@ interface PdfCallbacks {
   onChunk: (text: string) => void;
   onProgress: (current: number, total: number) => void;
   onFinalStart: () => void;
-  onError: (msg: string) => void;
 }
 
 async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
@@ -172,6 +171,8 @@ async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let serverError: string | null = null;
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -185,11 +186,14 @@ async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
           if (payload.type === "progress") cb.onProgress(payload.current, payload.total);
           else if (payload.type === "final_start") cb.onFinalStart();
           else if (payload.content) cb.onChunk(payload.content);
-          else if (payload.error) cb.onError(payload.error);
+          else if (payload.error) serverError = payload.error;
         } catch {}
       }
     }
   }
+
+  // Throw AFTER the stream ends so setPdfState("done") in handleAnalyze is never reached
+  if (serverError) throw new Error(serverError);
 }
 
 function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
@@ -241,14 +245,11 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
             return prev + chunk;
           });
         },
-        onError: (msg) => {
-          setPdfError(msg);
-          setPdfState("selected");
-        },
       });
       setPdfState("done");
-    } catch {
-      setPdfError("Analiz sırasında bir hata oluştu. Lütfen tekrar deneyin.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Analiz sırasında bir hata oluştu.";
+      setPdfError(msg);
       setPdfState("selected");
     }
   };
@@ -282,13 +283,15 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
           onDrop={onDrop}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
-          onClick={() => pdfState === "empty" && inputRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all duration-200 cursor-pointer
-            ${pdfState === "selected"
-              ? "border-green-300 bg-green-50 cursor-default"
-              : isDragging
-                ? "border-blue-400 bg-blue-50"
-                : "border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50"
+          onClick={() => (pdfState === "empty" || pdfError) && inputRef.current?.click()}
+          className={`relative border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all duration-200
+            ${pdfError
+              ? "border-red-300 bg-red-50 cursor-pointer hover:border-red-400"
+              : pdfState === "selected"
+                ? "border-green-300 bg-green-50 cursor-default"
+                : isDragging
+                  ? "border-blue-400 bg-blue-50 cursor-pointer"
+                  : "border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
             }`}
         >
           <input
@@ -299,7 +302,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
             onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
           />
 
-          {pdfState === "selected" ? (
+          {pdfState === "selected" && !pdfError ? (
             <>
               <span className="text-3xl">✅</span>
               <div className="text-center">
@@ -312,6 +315,14 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
               >
                 Farklı dosya seç
               </button>
+            </>
+          ) : pdfError ? (
+            <>
+              <span className="text-3xl">⚠️</span>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-red-700">Tekrar denemek için tıklayın</p>
+                <p className="text-xs text-red-500 mt-0.5">veya farklı bir PDF dosyası yükleyin</p>
+              </div>
             </>
           ) : (
             <>
