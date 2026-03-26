@@ -123,7 +123,7 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
 
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-5",
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: ANALYSIS_SYSTEM,
       messages: [{
         role: "user",

@@ -306,6 +306,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [softWarning, setSoftWarning] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pdfStreamRef = useRef<string>("");
 
   // Rotate tips every 4 seconds while analyzing, with a smooth fade
   useEffect(() => {
@@ -402,6 +403,8 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       });
     }, 1000);
 
+    pdfStreamRef.current = "";
+
     try {
       await analyzePdf(pdfFile, {
         onConnected: () => {
@@ -409,15 +412,20 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
           setEstimatedTime("Tahmini süre: 30-60 saniye");
         },
         onFinalStart: () => {
-          setStatusMsg("📝 Analiz yapılıyor, rapor hazırlanıyor...");
+          setStatusMsg("📝 Analiz tamamlanıyor, lütfen bekleyin...");
           if (progressTimerRef.current) clearInterval(progressTimerRef.current);
           setPct(90);
         },
         onChunk: (chunk) => {
-          setPdfAnswer((prev) => prev + chunk);
+          pdfStreamRef.current += chunk;
         },
       });
+      // Stream is complete — clean and display the full result at once
+      const cleaned = pdfStreamRef.current
+        .replace(/\*\*/g, "")
+        .replace(/^[ \t]*\*(?!\*)/gm, "•");
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+      setPdfAnswer(cleaned);
       setPct(100);
       setPdfState("done");
     } catch (e) {
@@ -621,21 +629,6 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
             <p className="text-xs text-[#5C4A1E] leading-relaxed">{TIPS[tipIdx]}</p>
           </div>
 
-          {/* ── Streaming preview ──────────────────────────────────────────── */}
-          {pdfAnswer && (
-            <div className="flex flex-col gap-2 pt-1">
-              <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest">
-                Sonuç hazırlanıyor...
-              </p>
-              {pdfSections.length > 0 ? (
-                pdfSections.map((section) => (
-                  <AnswerSection key={section.label} {...section} />
-                ))
-              ) : (
-                <MdBlock text={pdfAnswer} className="text-sm text-[#2D2D2D]" />
-              )}
-            </div>
-          )}
         </div>
       )}
 
