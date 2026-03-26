@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import Logo from "@/components/Logo";
 
 const STORAGE_KEY = "kd_welcome_accepted";
 
@@ -34,13 +35,8 @@ function WelcomeModal({ isFirstVisit, onAccept, onClose }: WelcomeModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header stripe */}
-        <div className="bg-[#1B2E4B] border-b-2 border-[#C9A84C] px-6 py-5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-semibold text-[#C9A84C] uppercase tracking-widest mb-0.5">
-              Kentsel Dönüşüm Rehberi
-            </p>
-            <h2 className="text-xl font-extrabold text-white leading-tight">Hoş Geldiniz</h2>
-          </div>
+        <div className="bg-[#1B2E4B] border-b-2 border-[#C9A84C] px-6 py-3 flex items-center justify-between">
+          <Logo width={180} />
           {/* Close button — only when not first visit */}
           {!isFirstVisit && (
             <button
@@ -51,6 +47,10 @@ function WelcomeModal({ isFirstVisit, onAccept, onClose }: WelcomeModalProps) {
               ✕
             </button>
           )}
+        </div>
+        {/* Welcome title below logo strip */}
+        <div className="px-6 pt-5 pb-0">
+          <h2 className="text-xl font-extrabold text-[#1B2E4B] leading-tight">Hoş Geldiniz</h2>
         </div>
 
         {/* Body */}

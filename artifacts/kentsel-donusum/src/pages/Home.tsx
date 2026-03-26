@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import ReactMarkdown from "react-markdown";
 import AppFooter from "@/components/AppFooter";
+import Logo from "@/components/Logo";
 
 function MdInline({ text, className }: { text: string; className?: string }) {
   return (
@@ -1421,12 +1422,10 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#FAFAF8] flex flex-col">
       {/* Header */}
-      <header className="bg-[#1B2E4B] border-b-2 border-[#C9A84C] py-4 px-6 sticky top-0 z-10 shadow-[0_2px_12px_rgba(27,46,75,0.2)]">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <span className="text-sm font-bold text-white tracking-tight flex items-center">
-            AI Destekli Kentsel Dönüşüm Rehberi
-            <span className="text-[10px] font-semibold text-[#C9A84C] bg-[#C9A84C]/10 border border-[#C9A84C]/30 px-2 py-0.5 rounded-full ml-2">Beta</span>
-          </span>
+      <header className="bg-[#1B2E4B] border-b-2 border-[#C9A84C] px-6 py-2 sticky top-0 z-10 shadow-[0_2px_12px_rgba(27,46,75,0.2)]">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <Logo width={200} />
+          <span className="text-[10px] font-semibold text-[#C9A84C] bg-[#C9A84C]/10 border border-[#C9A84C]/30 px-2 py-0.5 rounded-full">Beta</span>
         </div>
       </header>
 
