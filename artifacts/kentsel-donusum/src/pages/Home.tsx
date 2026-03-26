@@ -234,6 +234,30 @@ async function loadJsPDF(): Promise<any> {
   return (window as any).jspdf.jsPDF;
 }
 
+function sanitizePdfText(text: string): string {
+  return text
+    // Turkish characters → ASCII equivalents
+    .replace(/ş/g, "s").replace(/Ş/g, "S")
+    .replace(/ğ/g, "g").replace(/Ğ/g, "G")
+    .replace(/ı/g, "i").replace(/İ/g, "I")
+    .replace(/ü/g, "u").replace(/Ü/g, "U")
+    .replace(/ö/g, "o").replace(/Ö/g, "O")
+    .replace(/ç/g, "c").replace(/Ç/g, "C")
+    // Known emojis → plain text
+    .replace(/🔹/g, ">>")
+    .replace(/✅/g, "[OK]")
+    .replace(/⚠️/g, "[!]")
+    .replace(/❌/g, "[X]")
+    .replace(/📄/g, "[Belge]")
+    .replace(/🔍/g, "[Analiz]")
+    .replace(/💡/g, "[*]")
+    .replace(/📝/g, "[Not]")
+    // Strip any remaining emoji / surrogate pairs
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/[\u{2600}-\u{27BF}]/gu, "")
+    .trim();
+}
+
 async function downloadPdfReport(
   fileName: string,
   sections: { label: string; lines: string[] }[],
@@ -242,141 +266,139 @@ async function downloadPdfReport(
   const JsPDF = await loadJsPDF();
   const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-  const MARGIN = 18;
+  const MARGIN = 20;
   const PAGE_W = 210;
   const PAGE_H = 297;
-  const CONTENT_W = PAGE_W - MARGIN * 2;
-  const LINE_H = 5.5;
-  const FOOTER_H = 32;
+  const CW = PAGE_W - MARGIN * 2;   // content width = 170mm
+  const LH = 5.5;                    // line height
+  const FOOTER_RESERVE = 30;        // space kept for footer
 
   const navy = [27, 46, 75] as [number, number, number];
   const gold = [201, 168, 76] as [number, number, number];
   const dark = [45, 45, 45] as [number, number, number];
   const grey = [107, 114, 128] as [number, number, number];
-  const lightGrey = [200, 200, 200] as [number, number, number];
 
   let y = MARGIN;
 
   const ensureSpace = (needed: number) => {
-    if (y + needed > PAGE_H - FOOTER_H - 5) {
-      addFooter();
+    if (y + needed > PAGE_H - FOOTER_RESERVE) {
+      renderFooter();
       doc.addPage();
       y = MARGIN;
     }
   };
 
-  const addFooter = () => {
-    const footerY = PAGE_H - 22;
+  const renderFooter = () => {
+    const fy = PAGE_H - 20;
     doc.setDrawColor(...gold);
-    doc.setLineWidth(0.4);
-    doc.line(MARGIN, footerY, PAGE_W - MARGIN, footerY);
+    doc.setLineWidth(0.5);
+    doc.line(MARGIN, fy, PAGE_W - MARGIN, fy);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setTextColor(...grey);
     const disc = "Bu rapor genel bilgilendirme amaclidir. Kesin hukuki veya muhendislik karari niteligi tasimazsiniz. Onemli kararlar icin lisansli uzman gorusu aliniz.";
-    const discLines = doc.splitTextToSize(disc, CONTENT_W);
-    doc.text(discLines, MARGIN, footerY + 4);
+    const dLines = doc.splitTextToSize(disc, CW - 40);
+    doc.text(dLines, MARGIN, fy + 4);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
     doc.setTextColor(...gold);
-    doc.text("kentseldonusumrehberi.com", MARGIN, footerY + 4 + discLines.length * 3.8);
+    doc.text("kentseldonusumrehberi.com", MARGIN, fy + 4 + dLines.length * 3.5);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(...lightGrey);
-    const dateStr = new Date().toLocaleDateString("tr-TR");
-    doc.text(dateStr, PAGE_W - MARGIN, footerY + 4 + discLines.length * 3.8, { align: "right" });
+    doc.setTextColor(...grey);
+    const ds = new Date().toLocaleDateString("tr-TR");
+    doc.text(ds, PAGE_W - MARGIN, fy + 4, { align: "right" });
   };
 
-  // ── PAGE 1 HEADER ─────────────────────────────────────────────────────────
-  // App title
+  // ── HEADER ────────────────────────────────────────────────────────────────
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
   doc.setTextColor(...navy);
   doc.text("Kentsel Donusum Rehberi", MARGIN, y);
   y += 7;
 
-  // Gold separator
   doc.setDrawColor(...gold);
-  doc.setLineWidth(1);
+  doc.setLineWidth(1.2);
   doc.line(MARGIN, y, PAGE_W - MARGIN, y);
   y += 5;
 
-  // Subtitle
   doc.setFont("helvetica", "italic");
   doc.setFontSize(9);
   doc.setTextColor(...grey);
   doc.text("Yapay Zeka Destekli On Analiz Raporu", MARGIN, y);
   y += 7;
 
-  // Document name
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...dark);
-  const fileLabel = doc.splitTextToSize(`Analiz Edilen Belge: ${fileName}`, CONTENT_W);
-  doc.text(fileLabel, MARGIN, y);
-  y += fileLabel.length * LINE_H;
+  const safeFileName = sanitizePdfText(fileName);
+  const fileLines = doc.splitTextToSize(`Analiz Edilen Belge: ${safeFileName}`, CW);
+  doc.text(fileLines, MARGIN, y);
+  y += fileLines.length * LH + 1;
 
-  // Date/time
   const now = new Date();
-  const dateTimeStr = now.toLocaleString("tr-TR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  const dateStr = now.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(...grey);
-  doc.text(`Analiz Tarihi: ${dateTimeStr}`, MARGIN, y);
-  y += 10;
+  doc.text(`Analiz Tarihi: ${dateStr}`, MARGIN, y);
+  y += 11;
 
   // ── SECTIONS ──────────────────────────────────────────────────────────────
   const renderSections = sections.length > 0
     ? sections
     : [{ label: "Analiz Sonucu", lines: rawText.split("\n").filter(Boolean) }];
 
-  for (const section of renderSections) {
-    ensureSpace(18);
+  renderSections.forEach((section, idx) => {
+    ensureSpace(20);
 
-    // Section heading background strip
-    doc.setFillColor(...navy);
-    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 8, 1.5, 1.5, "F");
+    // Gold divider between sections (not before first)
+    if (idx > 0) {
+      doc.setDrawColor(...gold);
+      doc.setLineWidth(0.3);
+      doc.line(MARGIN, y - 2, PAGE_W - MARGIN, y - 2);
+      y += 3;
+    }
+
+    // Section heading — bold navy text, no filled background
+    const sLabel = sanitizePdfText(section.label);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(255, 255, 255);
-    doc.text(section.label, MARGIN + 4, y + 0.5);
-    y += 9;
+    doc.setFontSize(11);
+    doc.setTextColor(...navy);
+    doc.text(sLabel, MARGIN, y);
+    y += 6;
 
-    // Section content
+    // Section content lines
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     doc.setTextColor(...dark);
 
-    for (const line of section.lines) {
-      const isBullet = line.startsWith("•") || line.startsWith("-");
-      const prefix = isBullet ? "• " : "";
-      const text = isBullet ? line.replace(/^[•\-]\s*/, "") : line;
-      const indent = isBullet ? MARGIN + 5 : MARGIN + 2;
-      const width = CONTENT_W - (isBullet ? 7 : 4);
-      const wrapped = doc.splitTextToSize(prefix + text, width);
-      ensureSpace(wrapped.length * LINE_H + 2);
+    for (const rawLine of section.lines) {
+      const line = sanitizePdfText(rawLine);
+      if (!line) continue;
+
+      const isBullet = line.startsWith("•") || line.startsWith("-") || line.startsWith(">>") || /^\[.+\]/.test(line);
+      const bodyText = isBullet ? line.replace(/^[•\->>]+\s*/, "") : line;
+      const textWidth = CW - (isBullet ? 8 : 2);
+      const wrapped = doc.splitTextToSize(bodyText, textWidth);
+      ensureSpace(wrapped.length * LH + 2);
 
       if (isBullet) {
         doc.setTextColor(...gold);
-        doc.text("•", MARGIN + 2, y);
+        doc.text("*", MARGIN + 1, y);
         doc.setTextColor(...dark);
-        const textOnly = doc.splitTextToSize(text, width - 3);
-        doc.text(textOnly, indent, y);
-        y += textOnly.length * LINE_H;
+        doc.text(wrapped, MARGIN + 6, y);
+        y += wrapped.length * LH + 1;
       } else {
-        doc.text(wrapped, indent, y);
-        y += wrapped.length * LINE_H;
+        doc.text(wrapped, MARGIN + 2, y);
+        y += wrapped.length * LH + 1;
       }
-      y += 1;
     }
-    y += 4;
-  }
+    y += 5;
+  });
 
-  addFooter();
+  renderFooter();
 
-  const slug = fileName.replace(/\.pdf$/i, "").replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
+  const slug = sanitizePdfText(fileName.replace(/\.pdf$/i, ""))
+    .replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
   doc.save(`KDR_Analiz_${slug}.pdf`);
 }
 
