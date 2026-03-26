@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -59,13 +59,52 @@ const SECTION_KEYS = [
   { key: "🔹 Güven Seviyesi", label: "Güven Seviyesi", color: "purple" },
 ];
 
-function parseAnswer(raw: string): { label: string; color: string; lines: string[] }[] {
+const PDF_SECTION_KEYS = [
+  { key: "🔹 Kısa Özet", label: "Kısa Özet", color: "blue" },
+  { key: "🔹 Dikkat Edilmesi Gereken Noktalar", label: "Dikkat Edilmesi Gereken Noktalar", color: "orange" },
+  { key: "🔹 Olası Riskler", label: "Olası Riskler", color: "red" },
+  { key: "🔹 Eksik Bilgiler", label: "Eksik Bilgiler", color: "yellow" },
+  { key: "🔹 Önerilen Sonraki Adımlar", label: "Önerilen Sonraki Adımlar", color: "green" },
+  { key: "🔹 Güven Seviyesi", label: "Güven Seviyesi", color: "purple" },
+];
+
+const SIMULATED_PDF_RESULT = `🔹 Kısa Özet
+Yüklenen belge incelendi. Belgede müteahhit teklifi, yapı ruhsatı bilgileri ve kira tazminat şartlarına ilişkin maddeler tespit edildi. Genel olarak standart bir kentsel dönüşüm sözleşmesiyle uyumlu görünmektedir.
+
+🔹 Dikkat Edilmesi Gereken Noktalar
+- Teslim süresi için cezai şart maddesi yetersiz tanımlanmış
+- Kira yardımı ödeme takvimi net belirtilmemiş
+- İtiraz ve şikayet süreci için başvuru yolları eksik
+
+🔹 Olası Riskler
+- Gecikme tazminatı üst sınırı düşük belirlenmiş olabilir
+- Bağımsız bölüm alanlarında ölçü belirsizliği mevcut
+- Ortak alan kullanımı hakkında hüküm bulunmuyor
+
+🔹 Eksik Bilgiler
+- Yapı denetim firması bilgisi belgede yer almıyor
+- Sigorta ve güvence şartları tanımlanmamış
+- Projenin imar durumuyla uyumu teyit edilmemiş
+
+🔹 Önerilen Sonraki Adımlar
+- Gecikme ceza maddelerini avukatınızla gözden geçirin
+- Kira yardımı ödeme planını yazılı olarak netleştirin
+- İmar uygunluk belgesini talep edin
+- Sigorta şartlarını sözleşmeye ekletin
+
+🔹 Güven Seviyesi
+%72`;
+
+function parseAnswer(
+  raw: string,
+  sectionKeys: { key: string; label: string; color: string }[]
+): { label: string; color: string; lines: string[] }[] {
   const sections: { label: string; color: string; lines: string[] }[] = [];
   let current: { label: string; color: string; lines: string[] } | null = null;
 
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
-    const match = SECTION_KEYS.find((s) => trimmed.startsWith(s.key));
+    const match = sectionKeys.find((s) => trimmed.startsWith(s.key));
     if (match) {
       if (current) sections.push(current);
       current = { label: match.label, color: match.color, lines: [] };
@@ -80,6 +119,7 @@ function parseAnswer(raw: string): { label: string; color: string; lines: string
 const colorMap: Record<string, { bg: string; border: string; badge: string; text: string }> = {
   blue:   { bg: "bg-blue-50",   border: "border-blue-100",   badge: "bg-blue-100 text-blue-700",   text: "text-blue-900" },
   orange: { bg: "bg-orange-50", border: "border-orange-100", badge: "bg-orange-100 text-orange-700", text: "text-orange-900" },
+  red:    { bg: "bg-red-50",    border: "border-red-100",    badge: "bg-red-100 text-red-700",    text: "text-red-900" },
   yellow: { bg: "bg-yellow-50", border: "border-yellow-100", badge: "bg-yellow-100 text-yellow-700", text: "text-yellow-900" },
   green:  { bg: "bg-green-50",  border: "border-green-100",  badge: "bg-green-100 text-green-700",  text: "text-green-900" },
   purple: { bg: "bg-purple-50", border: "border-purple-100", badge: "bg-purple-100 text-purple-700", text: "text-purple-900" },
@@ -97,10 +137,8 @@ function AnswerSection({ label, color, lines }: { label: string; color: string; 
       </span>
       {isConfidence && confidenceValue ? (
         <div className="mt-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className={`text-sm font-bold ${c.text}`}>%{confidenceValue}</span>
-          </div>
-          <div className="w-full bg-white rounded-full h-2 border border-purple-100">
+          <span className={`text-sm font-bold ${c.text}`}>%{confidenceValue}</span>
+          <div className="w-full bg-white rounded-full h-2 border border-purple-100 mt-1">
             <div
               className="bg-purple-500 h-2 rounded-full transition-all duration-700"
               style={{ width: `${confidenceValue}%` }}
@@ -124,6 +162,170 @@ function AnswerSection({ label, color, lines }: { label: string; color: string; 
     </div>
   );
 }
+
+// ─── PDF Upload Section ────────────────────────────────────────────────────────
+
+type PdfState = "empty" | "selected" | "analyzing" | "done";
+
+function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
+  const [pdfState, setPdfState] = useState<PdfState>("empty");
+  const [fileName, setFileName] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (file: File) => {
+    if (!file || file.type !== "application/pdf") return;
+    setFileName(file.name);
+    setPdfState("selected");
+  };
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }, []);
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const onDragLeave = () => setIsDragging(false);
+
+  const handleAnalyze = () => {
+    setPdfState("analyzing");
+    setTimeout(() => setPdfState("done"), 2800);
+  };
+
+  const handleReset = () => {
+    setPdfState("empty");
+    setFileName("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const pdfSections = parseAnswer(SIMULATED_PDF_RESULT, PDF_SECTION_KEYS);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 sm:p-8 flex flex-col gap-4">
+      {/* Section header */}
+      <div>
+        <p className="text-base font-bold text-gray-900">Belge Yükle ve Analiz Et</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Sözleşme, teklif dosyası veya rapor yükleyerek riskleri öğrenin
+        </p>
+      </div>
+
+      {/* Upload box — empty or selected */}
+      {(pdfState === "empty" || pdfState === "selected") && (
+        <div
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onClick={() => pdfState === "empty" && inputRef.current?.click()}
+          className={`relative border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all duration-200 cursor-pointer
+            ${pdfState === "selected"
+              ? "border-green-300 bg-green-50 cursor-default"
+              : isDragging
+                ? "border-blue-400 bg-blue-50"
+                : "border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50"
+            }`}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
+          />
+
+          {pdfState === "selected" ? (
+            <>
+              <span className="text-3xl">✅</span>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-green-700">{fileName}</p>
+                <p className="text-xs text-green-600 mt-0.5">Dosya yüklendi</p>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleReset(); }}
+                className="text-xs text-gray-400 hover:text-gray-600 underline transition"
+              >
+                Farklı dosya seç
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-4xl text-gray-300">📄</span>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">
+                  PDF dosyanızı buraya bırakın veya yüklemek için tıklayın
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Yalnızca PDF formatı desteklenir</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Analyze button */}
+      {pdfState === "selected" && (
+        <button
+          onClick={handleAnalyze}
+          className="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 text-sm shadow-sm"
+        >
+          Belgeyi Analiz Et
+        </button>
+      )}
+
+      {/* Analyzing state */}
+      {pdfState === "analyzing" && (
+        <div className="border-2 border-dashed border-blue-200 rounded-xl bg-blue-50 p-6 flex flex-col items-center gap-3">
+          <span className="inline-block w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-medium text-blue-700">Belge analiz ediliyor...</p>
+          <p className="text-xs text-blue-500">Bu işlem birkaç saniye sürebilir</p>
+        </div>
+      )}
+
+      {/* Result */}
+      {pdfState === "done" && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Belge Analiz Sonucu</p>
+            <button
+              onClick={handleReset}
+              className="text-xs text-gray-400 hover:text-gray-600 underline transition"
+            >
+              Yeni belge yükle
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+            📄 <span className="font-medium">{fileName}</span>
+          </p>
+
+          <div className="flex flex-col gap-3">
+            {pdfSections.map((section) => (
+              <AnswerSection key={section.label} {...section} />
+            ))}
+          </div>
+
+          {/* Expert CTA after result */}
+          <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
+            <p className="text-sm text-gray-700 font-medium">
+              Bu belge için detaylı inceleme önerilir.
+              <br />
+              <span className="text-gray-500 font-normal">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
+            </p>
+            <button
+              onClick={onExpert}
+              className="self-start bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 shadow-sm"
+            >
+              Uzmanla Detaylı İncele
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -155,7 +357,7 @@ export default function Home() {
     alert("Bir uzmanla görüşmek için: Mimarlar Odası veya Barolar Birliği'ne başvurabilirsiniz.");
   };
 
-  const parsedSections = rawAnswer ? parseAnswer(rawAnswer) : [];
+  const parsedSections = rawAnswer ? parseAnswer(rawAnswer, SECTION_KEYS) : [];
 
   return (
     <div className="min-h-screen bg-[#f8f9fb] flex flex-col">
@@ -259,7 +461,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Result Area */}
+          {/* Q&A Result Area */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 sm:p-8 flex flex-col gap-4">
             <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Analiz Sonucu</p>
 
@@ -289,7 +491,7 @@ export default function Home() {
             )}
 
             {hasAsked && !loading && rawAnswer && (
-              <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
+              <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
                 <p className="text-sm text-gray-700 font-medium">
                   Bu durumda detaylı analiz önerilir.<br />
                   <span className="text-gray-500 font-normal">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
@@ -303,6 +505,9 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* PDF Upload Section */}
+          <PdfUploadSection onExpert={handleExpert} />
 
           {/* Expert Section */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-6 sm:p-8 text-center flex flex-col items-center gap-3">
@@ -327,10 +532,7 @@ export default function Home() {
                 "Tarafsız analiz",
                 "Gerektiğinde uzman yönlendirme",
               ].map((item) => (
-                <div
-                  key={item}
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm"
-                >
+                <div key={item} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
                   <span className="text-green-500 font-bold text-base">✔</span>
                   <span className="text-sm text-gray-700 font-medium">{item}</span>
                 </div>
