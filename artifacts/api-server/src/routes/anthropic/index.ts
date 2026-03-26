@@ -165,84 +165,169 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
   res.setHeader("Connection", "keep-alive");
 
   const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const t0 = Date.now();
+  const elapsed = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
 
   try {
+    // ── Step 1: extract text ────────────────────────────────────────────────────
     // Import the internal lib directly to avoid pdf-parse's debug-mode test file issue
-    // (index.js reads ./test/data/05-versions-space.pdf when bundled by esbuild)
     const pdfParse = (await import("pdf-parse/lib/pdf-parse.js" as string)).default;
     const pdfBuffer = Buffer.from(pdf, "base64");
+    const t1 = Date.now();
     const parsed = await pdfParse(pdfBuffer);
+    console.log(`[analyze-pdf] pdf-parse done in ${((Date.now() - t1) / 1000).toFixed(2)}s`);
+
     const fullText = (parsed?.text ?? "").trim();
+    const pageCount = parsed?.numpages ?? 0;
+    const wordCount = fullText.split(/\s+/).filter((w) => w.length > 0).length;
 
-    // Send page count so the frontend can show a large-doc warning
-    send({ type: "pages", count: parsed?.numpages ?? 0 });
+    console.log(`[analyze-pdf] pages=${pageCount} words=${wordCount}`);
+    send({ type: "pages", count: pageCount });
 
-    const chunks = fullText.length > 100
-      ? splitIntoChunks(fullText, 3000)
-      : null;
+    // ── Step 2: choose strategy based on page count ─────────────────────────────
+    if (pageCount <= 5) {
+      // ── FAST PATH: 1 direct streaming call, no intermediate chunk step ──────
+      // No progress bar for small documents — just stream results directly.
+      console.log(`[analyze-pdf] FAST PATH (≤5 pages) — single stream call`);
+      send({ type: "final_start" });
 
-    // Signal that chunking is about to start
-    send({ type: "chunking", total: chunks ? chunks.length : 1 });
+      const userMessage = fullText.length > 50
+        ? `Aşağıdaki belge metnini analiz et ve belirtilen format ile Türkçe olarak yanıt ver:\n\n${fullText}`
+        : `Bu belgeyi (${filename || "yüklenen dosya"}) analiz et ve belirtilen format ile Türkçe olarak yanıt ver.`;
 
-    const totalChunks = chunks ? chunks.length : 1;
-    send({ type: "progress", current: 0, total: totalChunks });
+      const msgContent: Parameters<typeof anthropic.messages.stream>[0]["messages"][0]["content"] =
+        fullText.length > 50
+          ? userMessage
+          : [
+              {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: pdf },
+              } as Parameters<typeof anthropic.messages.stream>[0]["messages"][0]["content"][0],
+              { type: "text", text: userMessage },
+            ];
 
-    const chunkResults: string[] = [];
+      const t2 = Date.now();
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        system: FINAL_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: msgContent }],
+      });
 
-    if (chunks && chunks.length > 0) {
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          send({ content: event.delta.text });
+        }
+      }
+      console.log(`[analyze-pdf] FAST PATH stream done in ${((Date.now() - t2) / 1000).toFixed(2)}s | total=${elapsed()}`);
+
+    } else if (pageCount <= 15) {
+      // ── MEDIUM PATH: 2 parallel chunks + 1 final synthesis ──────────────────
+      const words = fullText.split(/\s+/).filter((w) => w.length > 0);
+      const mid = Math.ceil(words.length / 2);
+      const chunks = [
+        words.slice(0, mid).join(" "),
+        words.slice(mid).join(" "),
+      ].filter((c) => c.trim().length > 10);
+
+      const total = chunks.length;
+      console.log(`[analyze-pdf] MEDIUM PATH (5-15 pages) — ${total} parallel chunks`);
+      send({ type: "chunking", total });
+      send({ type: "progress", current: 0, total });
+
+      let done = 0;
+      const t2 = Date.now();
+      const chunkResults = await Promise.all(
+        chunks.map(async (chunk, i) => {
+          const msg = await anthropic.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 1000,
+            system: CHUNK_SYSTEM_PROMPT,
+            messages: [{
+              role: "user",
+              content: `Bu bir sözleşmenin ${i + 1}. bölümü / toplam ${total} bölüm:\n\n${chunk}\n\nSadece bu bölümü analiz et ve bulgularını yaz.`,
+            }],
+          });
+          done++;
+          send({ type: "progress", current: done, total });
+          return msg.content[0]?.type === "text" ? msg.content[0].text : "";
+        })
+      );
+      console.log(`[analyze-pdf] MEDIUM PATH parallel chunks done in ${((Date.now() - t2) / 1000).toFixed(2)}s`);
+
+      send({ type: "final_start" });
+
+      const allAnalyses = chunkResults
+        .map((r, i) => `=== Bölüm ${i + 1} ===\n${r}`)
+        .join("\n\n");
+
+      const finalMsg = `Aşağıda bir sözleşmenin tüm bölümlerinin analizleri var. Bunları birleştirerek tek bir nihai analiz yaz.\n\n${allAnalyses}\n\nŞu formatı kullan:\n🔹 Kısa Özet\n🔹 Dikkat Edilmesi Gereken Noktalar\n🔹 Olası Riskler\n🔹 Eksik Bilgiler\n🔹 Önerilen Sonraki Adımlar\n🔹 Güven Seviyesi %`;
+
+      const t3 = Date.now();
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        system: FINAL_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: finalMsg }],
+      });
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          send({ content: event.delta.text });
+        }
+      }
+      console.log(`[analyze-pdf] MEDIUM PATH final stream done in ${((Date.now() - t3) / 1000).toFixed(2)}s | total=${elapsed()}`);
+
+    } else {
+      // ── SLOW PATH: sequential chunking, capped at 6 chunks ──────────────────
+      const MAX_CHUNKS = 6;
+      const wordsArr = fullText.split(/\s+/).filter((w) => w.length > 0);
+      const wordsPerChunk = Math.max(3000, Math.ceil(wordsArr.length / MAX_CHUNKS));
+      const chunks = splitIntoChunks(fullText, wordsPerChunk).slice(0, MAX_CHUNKS);
+
+      console.log(`[analyze-pdf] SLOW PATH (>15 pages) — ${chunks.length} sequential chunks`);
+      send({ type: "chunking", total: chunks.length });
+      send({ type: "progress", current: 0, total: chunks.length });
+
+      const chunkResults: string[] = [];
       for (let i = 0; i < chunks.length; i++) {
+        const tc = Date.now();
         const msg = await anthropic.messages.create({
           model: "claude-sonnet-4-6",
           max_tokens: 1000,
           system: CHUNK_SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: `Bu bir sözleşmenin ${i + 1}. bölümü / toplam ${chunks.length} bölüm:\n\n${chunks[i]}\n\nSadece bu bölümü analiz et ve bulgularını yaz.`,
-            },
-          ],
+          messages: [{
+            role: "user",
+            content: `Bu bir sözleşmenin ${i + 1}. bölümü / toplam ${chunks.length} bölüm:\n\n${chunks[i]}\n\nSadece bu bölümü analiz et ve bulgularını yaz.`,
+          }],
         });
-        const result = msg.content[0]?.type === "text" ? msg.content[0].text : "";
-        chunkResults.push(result);
+        chunkResults.push(msg.content[0]?.type === "text" ? msg.content[0].text : "");
         send({ type: "progress", current: i + 1, total: chunks.length });
+        console.log(`[analyze-pdf] SLOW PATH chunk ${i + 1}/${chunks.length} done in ${((Date.now() - tc) / 1000).toFixed(2)}s`);
       }
-    } else {
-      chunkResults.push("(PDF'ten metin çıkarılamadı, doğrudan belge analizi yapılıyor.)");
-      send({ type: "progress", current: 1, total: 1 });
-    }
 
-    send({ type: "final_start" });
+      send({ type: "final_start" });
 
-    const allAnalyses = chunkResults
-      .map((r, i) => `=== Bölüm ${i + 1} ===\n${r}`)
-      .join("\n\n");
+      const allAnalyses = chunkResults
+        .map((r, i) => `=== Bölüm ${i + 1} ===\n${r}`)
+        .join("\n\n");
 
-    const finalUserMessage = chunks
-      ? `Aşağıda bir sözleşmenin tüm bölümlerinin analizleri var. Bunları birleştirerek tek bir nihai analiz yaz.\n\n${allAnalyses}\n\nŞu formatı kullan:\n🔹 Kısa Özet\n🔹 Dikkat Edilmesi Gereken Noktalar\n🔹 Olası Riskler\n🔹 Eksik Bilgiler\n🔹 Önerilen Sonraki Adımlar\n🔹 Güven Seviyesi %`
-      : `Bu belgeyi (${filename || "yüklenen dosya"}) analiz et ve belirtilen format ile Türkçe olarak yanıt ver.`;
+      const finalMsg = `Aşağıda bir sözleşmenin tüm bölümlerinin analizleri var. Bunları birleştirerek tek bir nihai analiz yaz.\n\n${allAnalyses}\n\nŞu formatı kullan:\n🔹 Kısa Özet\n🔹 Dikkat Edilmesi Gereken Noktalar\n🔹 Olası Riskler\n🔹 Eksik Bilgiler\n🔹 Önerilen Sonraki Adımlar\n🔹 Güven Seviyesi %`;
 
-    const finalContent: Parameters<typeof anthropic.messages.stream>[0]["messages"][0]["content"] =
-      chunks
-        ? finalUserMessage
-        : [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: pdf },
-            } as Parameters<typeof anthropic.messages.stream>[0]["messages"][0]["content"][0],
-            { type: "text", text: finalUserMessage },
-          ];
+      const t3 = Date.now();
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        system: FINAL_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: finalMsg }],
+      });
 
-    const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1500,
-      system: FINAL_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: finalContent }],
-    });
-
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        send({ content: event.delta.text });
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          send({ content: event.delta.text });
+        }
       }
+      console.log(`[analyze-pdf] SLOW PATH final stream done in ${((Date.now() - t3) / 1000).toFixed(2)}s | total=${elapsed()}`);
     }
 
     send({ done: true });
