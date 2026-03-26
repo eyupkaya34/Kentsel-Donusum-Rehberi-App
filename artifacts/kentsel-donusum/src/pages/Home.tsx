@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import AppFooter from "@/components/AppFooter";
 
@@ -141,6 +141,22 @@ function AnswerSection({ label, color, lines }: { label: string; color: string; 
 
 // ─── PDF Upload Section ────────────────────────────────────────────────────────
 
+const TIPS = [
+  "💡 Kentsel dönüşümde en az 2/3 kat malikinin onayı gerekir.",
+  "💡 Riskli yapı tespiti yaptırmak için DASK sigortanız olmalıdır.",
+  "💡 Kiracılar kentsel dönüşüm sürecinde belirli haklara sahiptir.",
+  "💡 Müteahhit seçiminde en az 3 teklif almanızı öneririz.",
+  "💡 Tapu devrinden önce tüm borçların temizlendiğini kontrol edin.",
+  "💡 Kentsel dönüşüm kredilerinde devlet desteği alabilirsiniz.",
+];
+
+function getMicroMsg(pct: number): string {
+  if (pct <= 29) return "Belgeniz güvenli şekilde işleniyor...";
+  if (pct <= 85) return "Yapay zeka her maddeyi dikkatlice inceliyor...";
+  if (pct < 100) return "Son rötuşlar yapılıyor, neredeyse bitti...";
+  return "Raporunuz hazır!";
+}
+
 type PdfState = "empty" | "selected" | "analyzing" | "done";
 
 function fileToBase64(file: File): Promise<string> {
@@ -218,7 +234,23 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [statusMsg, setStatusMsg] = useState("");
   const [pageCount, setPageCount] = useState<number | null>(null);
   const [kvkkConsent, setKvkkConsent] = useState(false);
+  const [pct, setPct] = useState(0);
+  const [tipIdx, setTipIdx] = useState(0);
+  const [tipVisible, setTipVisible] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Rotate tips every 4 seconds while analyzing, with a smooth fade
+  useEffect(() => {
+    if (pdfState !== "analyzing") return;
+    const interval = setInterval(() => {
+      setTipVisible(false);
+      setTimeout(() => {
+        setTipIdx((prev) => (prev + 1) % TIPS.length);
+        setTipVisible(true);
+      }, 350);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [pdfState]);
 
   const handleFile = (file: File) => {
     if (!file || file.type !== "application/pdf") return;
@@ -252,10 +284,14 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setIsFinalizing(false);
     setPageCount(null);
     setStatusMsg("📄 Belgeniz yükleniyor...");
+    setPct(0);
+    setTipIdx(0);
+    setTipVisible(true);
     try {
       await analyzePdf(pdfFile, {
         onConnected: () => {
-          setStatusMsg("🔍 Belge okunuyor ve hazırlanıyor... Bu işlem belge boyutuna göre 1-2 dakika sürebilir.");
+          setStatusMsg("🔍 Belge okunuyor ve hazırlanıyor...");
+          setPct(15);
         },
         onPages: (count) => {
           setPageCount(count);
@@ -265,31 +301,32 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         },
         onChunking: () => {
           setStatusMsg("⚙️ Belge bölümlere ayrılıyor ve analiz için hazırlanıyor...");
+          setPct(30);
         },
         onProgress: (current, total) => {
           setProgress({ current, total });
           if (current > 0) {
             setStatusMsg(`🤖 Bölüm ${current} / ${total} analiz ediliyor... Lütfen bekleyin.`);
+            setPct(30 + Math.round((current / total) * 55));
           }
         },
         onFinalStart: () => {
           setIsFinalizing(true);
-          setStatusMsg("📝 Tüm bölümler tamamlandı. Nihai rapor hazırlanıyor... Bu adım 1-2 dakika sürebilir.");
+          setStatusMsg("📝 Tüm bölümler tamamlandı. Nihai rapor hazırlanıyor...");
+          setPct(90);
         },
         onChunk: (chunk) => {
-          // Accumulate content — do NOT set pdfState("done") here.
-          // pdfState stays "analyzing" so the notification box remains visible
-          // while the final synthesis streams in. pdfState("done") fires below
-          // once the full stream resolves.
           setPdfAnswer((prev) => prev + chunk);
         },
       });
+      setPct(100);
       setPdfState("done");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Analiz sırasında bir hata oluştu.";
       setPdfError(msg);
       setPdfState("selected");
       setStatusMsg("");
+      setPct(0);
     }
   };
 
@@ -303,6 +340,9 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setIsFinalizing(false);
     setStatusMsg("");
     setPageCount(null);
+    setPct(0);
+    setTipIdx(0);
+    setTipVisible(true);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -414,31 +454,58 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
 
       {/* Analyzing state */}
       {pdfState === "analyzing" && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
 
-          {/* ── Notification box ── always visible, updates in real time */}
-          <div className="flex items-start gap-3 rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-4 shadow-sm">
-            <span className="mt-0.5 flex-shrink-0 inline-block w-5 h-5 min-w-[1.25rem] border-[2.5px] border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">{statusMsg || "📄 Belgeniz yükleniyor..."}</p>
-          </div>
-
-          {/* ── Progress bar ── appears once chunking begins */}
-          {progress && (
-            <div className="bg-white border border-[#E8E3DC] rounded-xl px-5 py-4">
-              <div className="flex justify-between text-xs text-[#6B7280] mb-2">
-                <span>{progress.current} / {progress.total} bölüm tamamlandı</span>
-                <span>{Math.round((progress.current / progress.total) * 100)}%</span>
-              </div>
-              <div className="w-full bg-[#E8E3DC] rounded-full h-2">
-                <div
-                  className="bg-[#C9A84C] h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(progress.current / progress.total) * 100}%` }}
-                />
+          {/* ── Animated icon + status message ─────────────────────────────── */}
+          <div className="flex flex-col items-center gap-4 py-4">
+            {/* Pulsing building icon */}
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-[#1B2E4B]/10 animate-ping" style={{ animationDuration: "2.4s" }} />
+              <div className="absolute inset-2 rounded-full bg-[#C9A84C]/10 animate-ping" style={{ animationDuration: "2.4s", animationDelay: "0.7s" }} />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-[#1B2E4B] to-[#243d63] flex items-center justify-center shadow-[0_4px_24px_rgba(27,46,75,0.25)]">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 21h18" />
+                  <path d="M5 21V7l7-4 7 4v14" />
+                  <path d="M9 21v-6h6v6" />
+                  <path d="M9 9h.01M12 9h.01M15 9h.01" />
+                  <path d="M9 13h.01M12 13h.01M15 13h.01" />
+                </svg>
               </div>
             </div>
-          )}
 
-          {/* ── Streaming preview ── results appear here as the final synthesis streams in */}
+            {/* Status notification */}
+            <div className="w-full flex items-start gap-3 rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-3.5 shadow-sm">
+              <span className="mt-0.5 flex-shrink-0 inline-block w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">{statusMsg || "📄 Belgeniz yükleniyor..."}</p>
+            </div>
+          </div>
+
+          {/* ── Smooth percentage progress bar ─────────────────────────────── */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-[#6B7280]">{getMicroMsg(pct)}</p>
+              <p className="text-xs font-bold text-[#C9A84C] tabular-nums">{pct}%</p>
+            </div>
+            <div className="w-full bg-[#E8E3DC] rounded-full h-2.5 overflow-hidden">
+              <div
+                className="h-2.5 rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${pct}%`,
+                  background: "linear-gradient(90deg, #C9A84C 0%, #e2c06a 100%)",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* ── Rotating helpful tips ───────────────────────────────────────── */}
+          <div
+            className="rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-4 transition-opacity duration-300 ease-in-out"
+            style={{ opacity: tipVisible ? 1 : 0 }}
+          >
+            <p className="text-xs text-[#5C4A1E] leading-relaxed">{TIPS[tipIdx]}</p>
+          </div>
+
+          {/* ── Streaming preview ─────────────────────────────────────────── */}
           {pdfAnswer && (
             <div className="flex flex-col gap-2 pt-1">
               <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest">
