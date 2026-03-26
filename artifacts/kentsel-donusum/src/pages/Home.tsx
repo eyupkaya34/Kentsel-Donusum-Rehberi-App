@@ -281,6 +281,37 @@ function renderLinesHtml(lines: string[]): string {
   return html;
 }
 
+// ── Extract Güven Seviyesi % from sections ────────────────────────────────
+function extractGuvenPct(sections: { label: string; lines: string[] }[]): number | null {
+  for (const sec of [...sections].reverse()) {
+    const all = [sec.label, ...sec.lines].join(" ");
+    const m = all.match(/(\d{1,3})\s*%/) || all.match(/%\s*(\d{1,3})/);
+    if (m) {
+      const v = parseInt(m[1], 10);
+      if (v >= 0 && v <= 100) return v;
+    }
+  }
+  return null;
+}
+
+// ── Extract risk bullets from the risk/dikkat section ─────────────────────
+function extractRiskInfo(sections: { label: string; lines: string[] }[]): {
+  bullets: string[];
+  firstItem: string;
+} {
+  const riskSec = sections.find((s) =>
+    /risk|dikkat|olumsuz|tehlike/i.test(stripEmojis(s.label))
+  );
+  const src = riskSec ?? sections[1] ?? sections[0];
+  const bullets = (src?.lines ?? [])
+    .filter((l) => /^[\*\-•]/.test(l.trim()) || l.trim().length > 10)
+    .map((l) => stripEmojis(l).replace(/^[\*\-•]\s*/, "").replace(/\*\*/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  const firstItem = bullets[0] ?? "Sözleşme detayları için analiz bölümüne bakınız.";
+  return { bullets, firstItem };
+}
+
 function openPrintReport(
   fileName: string,
   sections: { label: string; lines: string[] }[],
@@ -291,146 +322,557 @@ function openPrintReport(
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+  const dateOnlyStr = now.toLocaleDateString("tr-TR", {
+    day: "2-digit", month: "long", year: "numeric",
+  });
 
   const renderSections = sections.length > 0
     ? sections
     : [{ label: "Analiz Sonucu", lines: rawText.split("\n").filter(Boolean) }];
 
+  // ── Extract intelligence from analysis ──────────────────────────────────
+  const guvenPct = extractGuvenPct(renderSections);
+  const { bullets: riskBullets, firstItem: firstRisk } = extractRiskInfo(renderSections);
+
+  let riskColor = "#C9A84C";
+  let riskLabel = "Orta Risk";
+  let riskBg = "#FFF8E7";
+  let riskBorder = "#C9A84C";
+  if (guvenPct !== null) {
+    if (guvenPct >= 75) { riskColor = "#16a34a"; riskLabel = "Düşük Risk"; riskBg = "#F0FDF4"; riskBorder = "#16a34a"; }
+    else if (guvenPct >= 50) { riskColor = "#d97706"; riskLabel = "Orta Risk"; riskBg = "#FFFBEB"; riskBorder = "#d97706"; }
+    else { riskColor = "#dc2626"; riskLabel = "Yüksek Risk"; riskBg = "#FEF2F2"; riskBorder = "#dc2626"; }
+  }
+
+  // ── Build main sections HTML ─────────────────────────────────────────────
   const sectionsHtml = renderSections.map((sec) => {
     const label = stripEmojis(sec.label).replace(/^[:\-\s]+/, "").trim();
-    const bodyHtml = renderLinesHtml(sec.lines);
-    return `
-      <div class="section">
+    return `<div class="section">
         <div class="section-title">${escHtml(label)}</div>
-        <div class="section-body">${bodyHtml}</div>
+        <div class="section-body">${renderLinesHtml(sec.lines)}</div>
       </div>`;
   }).join("\n");
+
+  // ── Risk summary rows ────────────────────────────────────────────────────
+  const riskRowsHtml = riskBullets.slice(0, 4).map((b) =>
+    `<div class="risk-item"><span class="risk-dot" style="background:${riskColor}"></span><span>${escHtml(b.slice(0, 120))}${b.length > 120 ? "…" : ""}</span></div>`
+  ).join("");
 
   const html = `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Kentsel Dönüşüm Rehberi — Analiz Raporu</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      background: #ffffff;
-      color: #2D2D2D;
-      font-size: 13px;
-      line-height: 1.65;
+    body { font-family: Arial, Helvetica, sans-serif; background: #fff; color: #2D2D2D; font-size: 12px; line-height: 1.65; }
+
+    /* ── SCREEN PRINT BAR ───────────────────────────────────────────── */
+    .print-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: #1B2E4B; padding: 10px 24px;
+      display: flex; align-items: center; justify-content: space-between;
     }
-    .header {
+    .print-bar-left { color: #C9A84C; font-weight: bold; font-size: 13px; }
+    .print-bar-right { display: flex; gap: 10px; align-items: center; }
+    .print-btn {
+      background: #C9A84C; color: #1B2E4B; border: none;
+      padding: 8px 22px; font-size: 13px; font-weight: bold;
+      cursor: pointer; border-radius: 6px;
+    }
+    .print-btn:hover { background: #b8963c; }
+    .screen-only { display: block; }
+    .screen-spacer { height: 52px; }
+
+    /* ── PAGE SHELL ─────────────────────────────────────────────────── */
+    .page-wrap { max-width: 820px; margin: 0 auto; }
+
+    /* ── RUNNING HEADER/FOOTER (print fixed) ────────────────────────── */
+    .run-header { display: none; }
+    .run-footer  { display: none; }
+
+    /* ── COVER PAGE ─────────────────────────────────────────────────── */
+    .cover {
       background: #1B2E4B;
-      color: #ffffff;
-      padding: 28px 36px 22px;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 0 60px;
+      page-break-after: always;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    .header h1 { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
-    .header .subtitle { font-size: 11px; color: #C9A84C; font-style: italic; }
-    .gold-bar { height: 4px; background: #C9A84C; }
-    .meta {
-      padding: 14px 36px;
-      background: #F8F7F4;
-      border-bottom: 1px solid #E8E3DC;
+    .cover-kite {
+      width: 56px; height: 56px; border-radius: 12px;
+      background: #C9A84C; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 24px;
     }
-    .meta p { font-size: 12px; color: #555; margin-bottom: 3px; }
-    .meta strong { color: #1B2E4B; }
-    .content { padding: 28px 36px; }
-    .section { margin-bottom: 28px; page-break-inside: avoid; }
+    .cover-kite svg { width: 32px; height: 32px; }
+    .cover-eyebrow {
+      font-size: 10px; color: #C9A84C; letter-spacing: 4px;
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+    .cover-name {
+      font-size: 30px; font-weight: bold; color: #fff;
+      line-height: 1.2; margin-bottom: 6px;
+    }
+    .cover-gold-bar {
+      width: 80px; height: 3px; background: #C9A84C;
+      margin: 28px auto;
+    }
+    .cover-report-type {
+      font-size: 15px; font-weight: bold; color: #C9A84C;
+      letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 40px;
+    }
+    .cover-doc-card {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(201,168,76,0.35);
+      border-radius: 10px; padding: 22px 36px;
+      max-width: 480px; margin: 0 auto 36px;
+    }
+    .cover-doc-eyebrow {
+      font-size: 9px; color: #C9A84C; letter-spacing: 3px;
+      text-transform: uppercase; margin-bottom: 10px;
+    }
+    .cover-doc-name {
+      font-size: 14px; color: #fff; font-weight: bold;
+      word-break: break-word; margin-bottom: 12px;
+    }
+    .cover-doc-date { font-size: 11px; color: rgba(255,255,255,0.55); }
+    .cover-tagline {
+      font-size: 10px; color: rgba(255,255,255,0.35);
+      letter-spacing: 1px; border-top: 1px solid rgba(201,168,76,0.25);
+      padding-top: 28px; margin-top: 8px; max-width: 380px;
+    }
+
+    /* ── INNER PAGE PADDING ─────────────────────────────────────────── */
+    .inner { padding: 44px 52px; }
+
+    /* ── SECTION HEADER (inside inner pages) ────────────────────────── */
+    .page-section-header {
+      border-bottom: 3px solid #C9A84C;
+      padding-bottom: 10px; margin-bottom: 28px;
+    }
+    .page-section-header h2 {
+      font-size: 18px; font-weight: bold; color: #1B2E4B;
+    }
+
+    /* ── RISK SUMMARY BOX ───────────────────────────────────────────── */
+    .risk-summary-wrap { page-break-after: always; }
+    .risk-box {
+      border: 2px solid ${riskBorder};
+      border-radius: 10px;
+      background: ${riskBg};
+      overflow: hidden; margin-bottom: 24px;
+    }
+    .risk-box-header {
+      background: ${riskColor};
+      padding: 14px 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .risk-badge {
+      background: rgba(255,255,255,0.25);
+      color: #fff; font-size: 10px; font-weight: bold;
+      padding: 3px 10px; border-radius: 20px; letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .risk-box-header-title { color: #fff; font-weight: bold; font-size: 14px; }
+    .risk-box-body { padding: 20px; }
+    .risk-stat-row { display: flex; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .risk-stat {
+      flex: 1; min-width: 120px;
+      background: #fff; border-radius: 8px;
+      padding: 14px 16px; border: 1px solid #E8E3DC;
+    }
+    .risk-stat-label { font-size: 9px; color: #6B7280; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .risk-stat-value { font-size: 22px; font-weight: bold; color: ${riskColor}; }
+    .risk-stat-unit { font-size: 10px; color: #9CA3AF; }
+    .risk-critical-label {
+      font-size: 10px; font-weight: bold; color: #374151;
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+    }
+    .risk-critical-text {
+      font-size: 12px; color: #1B2E4B; line-height: 1.5;
+      background: #fff; border-radius: 6px; padding: 10px 14px;
+      border-left: 4px solid ${riskColor}; margin-bottom: 14px;
+    }
+    .risk-item { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; font-size: 11px; color: #374151; }
+    .risk-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+    .risk-tavsiye {
+      background: #1B2E4B; color: #C9A84C;
+      border-radius: 8px; padding: 12px 16px;
+      font-size: 12px; font-weight: bold;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .risk-tavsiye-icon { font-size: 18px; }
+
+    /* ── ANALYSIS SECTIONS ──────────────────────────────────────────── */
+    .section { margin-bottom: 26px; page-break-inside: avoid; }
     .section-title {
-      font-size: 14px;
-      font-weight: bold;
-      color: #1B2E4B;
-      padding-bottom: 6px;
-      margin-bottom: 10px;
+      font-size: 13px; font-weight: bold; color: #1B2E4B;
+      padding-bottom: 5px; margin-bottom: 10px;
       border-bottom: 2px solid #C9A84C;
     }
-    .section-body p { margin-bottom: 7px; }
-    .section-body ul { margin: 4px 0 8px 20px; }
+    .section-body p  { margin-bottom: 7px; color: #2D2D2D; }
+    .section-body ul { margin: 4px 0 8px 18px; }
     .section-body li { margin-bottom: 5px; }
-    .section-body .md-h {
-      font-size: 13px;
-      font-weight: bold;
-      color: #1B2E4B;
-      margin: 10px 0 6px;
-    }
+    .section-body .md-h { font-size: 12px; font-weight: bold; color: #1B2E4B; margin: 10px 0 5px; }
     .section-body strong { font-weight: bold; }
-    .footer {
-      margin-top: 20px;
-      padding: 16px 36px 24px;
+
+    /* ── CHECKLIST PAGE ─────────────────────────────────────────────── */
+    .checklist-page { page-break-before: always; }
+    .checklist-items { margin-top: 20px; }
+    .checklist-item {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 13px 16px; border: 1.5px solid #E8E3DC;
+      border-radius: 8px; margin-bottom: 10px; background: #FAFAF8;
+    }
+    .checkbox {
+      width: 20px; height: 20px; border: 2px solid #1B2E4B;
+      border-radius: 4px; flex-shrink: 0; background: #fff;
+    }
+    .checklist-text { font-size: 13px; color: #1B2E4B; line-height: 1.4; padding-top: 1px; }
+    .checklist-sub  { font-size: 10px; color: #6B7280; margin-top: 2px; }
+    .print-note {
+      margin-top: 20px; padding: 12px 16px;
+      background: #F8F7F4; border-radius: 6px;
+      font-size: 10px; color: #9CA3AF; font-style: italic;
+    }
+
+    /* ── EXPERT PAGE ────────────────────────────────────────────────── */
+    .expert-page { page-break-before: always; }
+    .expert-intro { font-size: 13px; color: #374151; margin-bottom: 22px; line-height: 1.7; }
+    .expert-cta {
+      background: #1B2E4B; border-radius: 12px;
+      padding: 28px 32px; text-align: center; margin-bottom: 24px;
+    }
+    .expert-cta-title { font-size: 16px; font-weight: bold; color: #C9A84C; margin-bottom: 10px; }
+    .expert-cta-text { font-size: 13px; color: rgba(255,255,255,0.85); line-height: 1.6; margin-bottom: 20px; }
+    .expert-cta-url {
+      display: inline-block; background: #C9A84C; color: #1B2E4B;
+      font-weight: bold; font-size: 13px;
+      padding: 10px 28px; border-radius: 6px; text-decoration: none;
+    }
+    .expert-types { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 24px; }
+    .expert-type-card {
+      flex: 1; min-width: 140px;
+      border: 1.5px solid #E8E3DC; border-radius: 8px;
+      padding: 16px; background: #FAFAF8;
+    }
+    .expert-type-icon { font-size: 20px; margin-bottom: 8px; }
+    .expert-type-title { font-size: 12px; font-weight: bold; color: #1B2E4B; margin-bottom: 4px; }
+    .expert-type-desc  { font-size: 10px; color: #6B7280; line-height: 1.4; }
+
+    /* ── DOCUMENT FOOTER ────────────────────────────────────────────── */
+    .doc-footer {
+      margin-top: 40px; padding: 18px 52px;
+      border-top: 3px solid #C9A84C;
       background: #F8F7F4;
-      border-top: 1px solid #E8E3DC;
     }
-    .footer .disclaimer { font-size: 10px; color: #6B7280; margin-bottom: 6px; }
-    .footer .site { font-size: 11px; font-weight: bold; color: #C9A84C; }
-    .footer .date { font-size: 10px; color: #9CA3AF; margin-top: 2px; }
-    .print-bar {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      background: #1B2E4B;
-      color: #C9A84C;
-      padding: 10px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      z-index: 999;
-      font-size: 13px;
-    }
-    .print-bar span { color: #ffffff; font-size: 12px; }
-    .print-btn {
-      background: #C9A84C;
-      color: #1B2E4B;
-      border: none;
-      padding: 8px 20px;
-      font-size: 13px;
-      font-weight: bold;
-      cursor: pointer;
-      border-radius: 6px;
-    }
-    .print-btn:hover { background: #b8973e; }
-    .print-spacer { height: 48px; }
+    .doc-footer-inner { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+    .doc-footer-disc { font-size: 9px; color: #9CA3AF; max-width: 480px; line-height: 1.5; }
+    .doc-footer-right { text-align: right; }
+    .doc-footer-site { font-size: 11px; font-weight: bold; color: #C9A84C; }
+    .doc-footer-date { font-size: 9px; color: #9CA3AF; margin-top: 2px; }
+
+    /* ── @MEDIA PRINT ───────────────────────────────────────────────── */
     @media print {
-      .print-bar, .print-spacer { display: none !important; }
-      body { font-size: 12px; }
-      .header { padding: 20px 28px 16px; }
-      .content { padding: 20px 28px; }
-      .footer { padding: 12px 28px 16px; }
-      .section { page-break-inside: avoid; }
+      .screen-only, .screen-spacer { display: none !important; }
+      body { font-size: 11px; }
+      .cover {
+        min-height: 100vh;
+        page-break-after: always;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .risk-box {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .risk-box-header {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .expert-cta {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .run-header {
+        display: block;
+        position: fixed; top: 0; left: 0; right: 0;
+        background: #fff; padding: 8px 52px 0;
+        border-bottom: 1px solid #E8E3DC;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .run-header-inner {
+        display: flex; justify-content: space-between; align-items: center;
+        padding-bottom: 6px;
+      }
+      .run-header-name { font-size: 9px; font-weight: bold; color: #1B2E4B; letter-spacing: 1px; }
+      .run-header-doc  { font-size: 9px; color: #9CA3AF; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .run-header-gold { height: 2px; background: #C9A84C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .run-footer {
+        display: block;
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: #fff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .run-footer-gold { height: 2px; background: #C9A84C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .run-footer-inner {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 5px 52px 6px;
+      }
+      .run-footer-disc { font-size: 8px; color: #9CA3AF; }
+      .run-footer-site { font-size: 8px; font-weight: bold; color: #C9A84C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .inner { padding: 28px 52px; margin-top: 32px; margin-bottom: 28px; }
+      .doc-footer { display: none; }
     }
   </style>
 </head>
 <body>
-  <div class="print-bar">
-    <span>Kentsel Dönüşüm Rehberi — Analiz Raporu</span>
-    <button class="print-btn" onclick="window.print()">Yazdır / PDF Kaydet</button>
-  </div>
-  <div class="print-spacer"></div>
 
-  <div class="header">
-    <h1>Kentsel Dönüşüm Rehberi</h1>
-    <div class="subtitle">Yapay Zeka Destekli Ön Analiz Raporu</div>
+  <!-- ── SCREEN PRINT BAR ────────────────────────────────────────────────── -->
+  <div class="print-bar screen-only">
+    <div class="print-bar-left">Kentsel Dönüşüm Rehberi — Analiz Raporu</div>
+    <div class="print-bar-right">
+      <button class="print-btn" onclick="window.print()">Yazdır / PDF Olarak Kaydet</button>
+    </div>
   </div>
-  <div class="gold-bar"></div>
+  <div class="screen-spacer"></div>
 
-  <div class="meta">
-    <p><strong>Analiz Edilen Belge:</strong> ${escHtml(fileName)}</p>
-    <p><strong>Analiz Tarihi:</strong> ${escHtml(dateStr)}</p>
-  </div>
-
-  <div class="content">
-    ${sectionsHtml}
+  <!-- ── RUNNING HEADER (print only, fixed, repeats every page) ─────────── -->
+  <div class="run-header">
+    <div class="run-header-inner">
+      <span class="run-header-name">KENTSEL DÖNÜŞÜM REHBERİ</span>
+      <span class="run-header-doc">${escHtml(fileName)}</span>
+    </div>
+    <div class="run-header-gold"></div>
   </div>
 
-  <div class="footer">
-    <p class="disclaimer">Bu rapor genel bilgilendirme amacıyla hazırlanmıştır. Kesin hukuki veya mühendislik kararı niteliği taşımaz. Önemli kararlar için lisanslı uzman görüşü alınız.</p>
-    <p class="site">kentseldonusumrehberi.com</p>
-    <p class="date">Rapor tarihi: ${escHtml(dateStr)}</p>
+  <!-- ── RUNNING FOOTER (print only) ───────────────────────────────────── -->
+  <div class="run-footer">
+    <div class="run-footer-gold"></div>
+    <div class="run-footer-inner">
+      <span class="run-footer-disc">Bu rapor bilgilendirme amaçlıdır; hukuki veya teknik tavsiye niteliği taşımaz.</span>
+      <span class="run-footer-site">kentseldonusumrehberi.com · ${escHtml(dateStr)}</span>
+    </div>
   </div>
+
+  <div class="page-wrap">
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- PAGE 1: COVER                                                      -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="cover">
+      <div class="cover-kite">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="10" height="10" rx="1" fill="#1B2E4B"/>
+          <rect x="18" y="4" width="10" height="10" rx="1" fill="#1B2E4B"/>
+          <rect x="4" y="18" width="10" height="10" rx="1" fill="#1B2E4B"/>
+          <rect x="18" y="18" width="10" height="10" rx="1" fill="#1B2E4B" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="cover-eyebrow">Kentsel Dönüşüm Rehberi</div>
+      <div class="cover-name">Sözleşme Ön Analiz<br>Raporu</div>
+      <div class="cover-gold-bar"></div>
+      <div class="cover-report-type">Yapay Zeka Destekli Belge Analizi</div>
+      <div class="cover-doc-card">
+        <div class="cover-doc-eyebrow">Analiz Edilen Belge</div>
+        <div class="cover-doc-name">${escHtml(fileName)}</div>
+        <div class="cover-doc-date">Analiz Tarihi: ${escHtml(dateStr)}</div>
+      </div>
+      <div class="cover-tagline">
+        Bu rapor yapay zeka tarafından üretilmiştir.<br>
+        Uzman görüşü değildir — Yasal bağlayıcılığı yoktur.<br><br>
+        kentseldonusumrehberi.com
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- PAGE 2: RISK EXECUTIVE SUMMARY                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="inner risk-summary-wrap">
+      <div class="page-section-header">
+        <h2>Yönetici Özeti — Risk Değerlendirmesi</h2>
+      </div>
+
+      <div class="risk-box">
+        <div class="risk-box-header">
+          <span class="risk-badge">${escHtml(riskLabel)}</span>
+          <span class="risk-box-header-title">Genel Risk Durumu — ${guvenPct !== null ? `Güven Seviyesi %${guvenPct}` : "Değerlendirme tamamlandı"}</span>
+        </div>
+        <div class="risk-box-body">
+          <div class="risk-stat-row">
+            <div class="risk-stat">
+              <div class="risk-stat-label">Güven Seviyesi</div>
+              <div class="risk-stat-value">${guvenPct !== null ? `%${guvenPct}` : "—"}</div>
+            </div>
+            <div class="risk-stat">
+              <div class="risk-stat-label">Tespit Edilen Madde</div>
+              <div class="risk-stat-value">${riskBullets.length}</div>
+              <div class="risk-stat-unit">dikkat noktası</div>
+            </div>
+            <div class="risk-stat">
+              <div class="risk-stat-label">Tavsiye</div>
+              <div class="risk-stat-value" style="font-size:13px;line-height:1.3">Avukat<br>İncelemesi</div>
+            </div>
+          </div>
+
+          <div class="risk-critical-label">En Kritik Madde</div>
+          <div class="risk-critical-text">${escHtml(firstRisk)}</div>
+
+          ${riskRowsHtml ? `<div class="risk-critical-label" style="margin-top:12px">Tespit Edilen Dikkat Noktaları</div>${riskRowsHtml}` : ""}
+
+          <div class="risk-tavsiye">
+            <span class="risk-tavsiye-icon">!</span>
+            <span>Tavsiye: Bu sözleşmeyi imzalamadan önce mutlaka bir avukata inceletin.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- PAGES 3+: FULL ANALYSIS                                            -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="inner">
+      <div class="page-section-header">
+        <h2>Detaylı Analiz Sonuçları</h2>
+      </div>
+      ${sectionsHtml}
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- CHECKLIST PAGE                                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="inner checklist-page">
+      <div class="page-section-header">
+        <h2>Sonraki Adımlar — Kontrol Listesi</h2>
+      </div>
+      <p style="font-size:12px;color:#6B7280;margin-bottom:20px">
+        Bu listeyi yazdırın ve her adımı tamamladıkça işaretleyin.
+      </p>
+      <div class="checklist-items">
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">Sözleşmeyi bir kentsel dönüşüm avukatına inceletin</div>
+            <div class="checklist-sub">Özellikle hak kayıplarına yol açabilecek maddeler için hukuki görüş alın</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">Tüm ekleri ve teknik şartnameleri talep edin</div>
+            <div class="checklist-sub">Sözleşmeye atıfta bulunulan tüm ek belgeler eksiksiz olmalıdır</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">Yüklenici firma hakkında araştırma yapın</div>
+            <div class="checklist-sub">Ticaret sicil kaydı, referanslar ve tamamlanmış projeler</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">"Yarısı Bizden" kampanya tarihlerini doğrulayın</div>
+            <div class="checklist-sub">Kira yardımı ve destek ödemelerinin süre ve kapsamını teyit edin</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">Teknik şartname için bağımsız mühendis görüşü alın</div>
+            <div class="checklist-sub">Yapı kalitesi, malzeme standartları ve teslim süresi garantileri</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">Kira yardımı ve taşınma desteği belgelerini imzalayın</div>
+            <div class="checklist-sub">Tüm ödemelerin yazılı taahhüt altına alındığından emin olun</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div>
+            <div class="checklist-text">Yeni konutun tapu ve kat planını talep edin</div>
+            <div class="checklist-sub">Daire numarası, konum ve kat bilgisi sözleşmede açıkça belirtilmeli</div>
+          </div>
+        </div>
+      </div>
+      <div class="print-note">
+        Bu kontrol listesi genel niteliktedir. Durumunuza özgü ek adımlar için uzman desteği alın.
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- EXPERT REFERRAL PAGE                                               -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="inner expert-page">
+      <div class="page-section-header">
+        <h2>Uzman Desteği Alın</h2>
+      </div>
+      <p class="expert-intro">
+        Bu rapor, sözleşmenizin yapay zeka tarafından yapılmış ön analizini sunar.
+        Kentsel dönüşüm sürecinde haklarınızı tam anlamıyla korumak için
+        alanında uzman profesyonellerle çalışmanızı şiddetle tavsiye ederiz.
+        Aşağıdaki uzman türleri bu süreçte size doğrudan destek sağlayabilir.
+      </p>
+
+      <div class="expert-types">
+        <div class="expert-type-card">
+          <div class="expert-type-icon">Hukuk</div>
+          <div class="expert-type-title">Kentsel Dönüşüm Avukatı</div>
+          <div class="expert-type-desc">Sözleşme inceleme, hak kayıplarının önlenmesi ve müzakere desteği</div>
+        </div>
+        <div class="expert-type-card">
+          <div class="expert-type-icon">Müh.</div>
+          <div class="expert-type-title">İnşaat Mühendisi</div>
+          <div class="expert-type-desc">Teknik şartname kontrolü, yapı kalitesi ve teslim süresi değerlendirmesi</div>
+        </div>
+        <div class="expert-type-card">
+          <div class="expert-type-icon">Mali</div>
+          <div class="expert-type-title">Mali Müşavir</div>
+          <div class="expert-type-desc">Kira yardımı, vergi avantajları ve finansal etkilerin analizi</div>
+        </div>
+      </div>
+
+      <div class="expert-cta">
+        <div class="expert-cta-title">Bu raporu uzmanınıza gösterin</div>
+        <div class="expert-cta-text">
+          Kentsel dönüşüm haklarınızı koruyun.<br>
+          Sözleşmenizi imzalamadan önce profesyonel destek alın.
+        </div>
+        <span class="expert-cta-url">kentseldonusumrehberi.com</span>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- DOCUMENT FOOTER (screen only — print uses run-footer)              -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="doc-footer">
+      <div class="doc-footer-inner">
+        <div class="doc-footer-disc">
+          Bu rapor yalnızca genel bilgilendirme amacıyla hazırlanmıştır. Kesin hukuki veya mühendislik kararı niteliği taşımaz.
+          Önemli kararlar için lisanslı uzman görüşü alınız. © ${now.getFullYear()} Kentsel Dönüşüm Rehberi
+        </div>
+        <div class="doc-footer-right">
+          <div class="doc-footer-site">kentseldonusumrehberi.com</div>
+          <div class="doc-footer-date">${escHtml(dateOnlyStr)}</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-wrap -->
 
   <script>
     window.addEventListener("load", function () {
-      setTimeout(function () { window.print(); }, 400);
+      setTimeout(function () { window.print(); }, 500);
     });
   </script>
 </body>
