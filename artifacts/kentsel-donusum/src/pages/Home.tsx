@@ -214,16 +214,32 @@ function getMicroMsg(pct: number): string {
 
 type PdfState = "empty" | "selected" | "analyzing" | "done";
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1]);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+async function extractPdfText(file: File): Promise<string> {
+  if (!(window as any).pdfjsLib) {
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = PDFJS_CDN;
+      script.onload = () => resolve();
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  const pdfjsLib = (window as any).pdfjsLib;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = (content.items as { str: string }[]).map((item) => item.str).join(" ");
+    text += `\n[Sayfa ${i}]\n${pageText}`;
+  }
+  return text.trim();
 }
 
 interface PdfCallbacks {
@@ -233,11 +249,11 @@ interface PdfCallbacks {
 }
 
 async function analyzePdf(file: File, cb: PdfCallbacks): Promise<void> {
-  const base64 = await fileToBase64(file);
+  const extractedText = await extractPdfText(file);
   const res = await fetch(`${BASE}/api/anthropic/analyze-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pdf: base64, filename: file.name }),
+    body: JSON.stringify({ text: extractedText, filename: file.name }),
   });
   if (!res.ok || !res.body) throw new Error("Analiz başlatılamadı.");
 

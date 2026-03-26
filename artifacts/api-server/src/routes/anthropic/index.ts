@@ -6,21 +6,14 @@ import { eq } from "drizzle-orm";
 const router: IRouter = Router();
 
 // ── System prompt ──────────────────────────────────────────────────────────────
-const ANALYSIS_SYSTEM = `Türkiye kentsel dönüşüm ve yapı belgesi analiz asistanısın. Sade Türkçe yaz. Kesin hukuki veya mühendislik kararı verme. Bilgi eksikse bunu açıkça belirt.
+const ANALYSIS_SYSTEM = `Sen Türkiye'de kentsel dönüşüm ve yapı denetimi konusunda uzman bir rehbersin. Yüklenen belgeyi analiz et ve sonuçları aşağıdaki başlıklar altında sade, anlaşılır Türkçe ile yaz. Kesin hukuki veya mühendislik kararı verme. Gerektiğinde uzman görüşü alınmasını tavsiye et.
 
-Yanıtını MUTLAKA bu yapıda ver:
 🔹 Kısa Özet
-[2-3 cümle]
 🔹 Dikkat Edilmesi Gereken Noktalar
-- ...
 🔹 Olası Riskler
-- ...
 🔹 Eksik Bilgiler
-- ...
 🔹 Önerilen Sonraki Adımlar
-- ...
-🔹 Güven Seviyesi
-%[0-100]`;
+🔹 Güven Seviyesi %`;
 
 // ── Conversations API ──────────────────────────────────────────────────────────
 router.get("/conversations", async (req: Request, res: Response) => {
