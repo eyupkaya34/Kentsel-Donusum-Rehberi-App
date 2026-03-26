@@ -259,6 +259,9 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         },
         onPages: (count) => {
           setPageCount(count);
+          if (count > 10) {
+            setStatusMsg(`⏳ Büyük bir belge yüklediniz (${count} sayfa). Tam analiz 5–10 dakika sürebilir. Lütfen sayfayı kapatmayın.`);
+          }
         },
         onChunking: () => {
           setStatusMsg("⚙️ Belge bölümlere ayrılıyor ve analiz için hazırlanıyor...");
@@ -274,13 +277,11 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
           setStatusMsg("📝 Tüm bölümler tamamlandı. Nihai rapor hazırlanıyor... Bu adım 1-2 dakika sürebilir.");
         },
         onChunk: (chunk) => {
-          setPdfAnswer((prev) => {
-            if (prev === "") {
-              setPdfState("done");
-              setStatusMsg("✅ Analiz tamamlandı!");
-            }
-            return prev + chunk;
-          });
+          // Accumulate content — do NOT set pdfState("done") here.
+          // pdfState stays "analyzing" so the notification box remains visible
+          // while the final synthesis streams in. pdfState("done") fires below
+          // once the full stream resolves.
+          setPdfAnswer((prev) => prev + chunk);
         },
       });
       setPdfState("done");
@@ -414,23 +415,14 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       {/* Analyzing state */}
       {pdfState === "analyzing" && (
         <div className="flex flex-col gap-3">
-          {/* Large document warning */}
-          {pageCount !== null && pageCount > 10 && (
-            <div className="flex items-start gap-2.5 bg-[#FDF8F0] border border-[#C9A84C]/30 rounded-xl px-5 py-4">
-              <span className="text-base leading-none mt-0.5">⏳</span>
-              <p className="text-sm text-[#5C4A1E] leading-snug">
-                Büyük bir belge yüklediniz ({pageCount} sayfa). Tam analiz 5–10 dakika sürebilir. Lütfen sayfayı kapatmayın.
-              </p>
-            </div>
-          )}
 
-          {/* Status notification box */}
-          <div className="flex items-center gap-3 bg-[#FDF8F0] border border-[#C9A84C]/40 border-l-4 border-l-[#C9A84C] rounded-xl px-5 py-4">
-            <span className="inline-block w-5 h-5 min-w-[1.25rem] border-[2.5px] border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-medium text-[#1B2E4B] leading-snug">{statusMsg}</p>
+          {/* ── Notification box ── always visible, updates in real time */}
+          <div className="flex items-start gap-3 rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-4 shadow-sm">
+            <span className="mt-0.5 flex-shrink-0 inline-block w-5 h-5 min-w-[1.25rem] border-[2.5px] border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">{statusMsg || "📄 Belgeniz yükleniyor..."}</p>
           </div>
 
-          {/* Progress bar — shown once chunking starts */}
+          {/* ── Progress bar ── appears once chunking begins */}
           {progress && (
             <div className="bg-white border border-[#E8E3DC] rounded-xl px-5 py-4">
               <div className="flex justify-between text-xs text-[#6B7280] mb-2">
@@ -445,6 +437,22 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
               </div>
             </div>
           )}
+
+          {/* ── Streaming preview ── results appear here as the final synthesis streams in */}
+          {pdfAnswer && (
+            <div className="flex flex-col gap-2 pt-1">
+              <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest">
+                Sonuç hazırlanıyor...
+              </p>
+              {pdfSections.length > 0 ? (
+                pdfSections.map((section) => (
+                  <AnswerSection key={section.label} {...section} />
+                ))
+              ) : (
+                <p className="text-sm text-[#2D2D2D] leading-relaxed whitespace-pre-wrap">{pdfAnswer}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -456,6 +464,12 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       {/* Result */}
       {pdfState === "done" && pdfAnswer && (
         <div className="flex flex-col gap-3">
+          {/* ✅ Message 7 — always visible on completion */}
+          <div className="flex items-center gap-3 rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-4 shadow-sm">
+            <span className="text-lg flex-shrink-0">✅</span>
+            <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">Analiz tamamlandı!</p>
+          </div>
+
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold text-[#1B2E4B] uppercase tracking-widest">Belge Analiz Sonucu</p>
             <button
