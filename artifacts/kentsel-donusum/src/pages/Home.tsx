@@ -89,7 +89,7 @@ export default function Home() {
         <div className="w-full max-w-2xl">
           <div className="mb-10 text-center">
             <h1 className="text-4xl font-bold text-gray-900 mb-3 leading-tight">
-              Kentsel Dönüşüm Rehberi
+              Aklınıza Takılan Her Şey
             </h1>
             <p className="text-lg text-gray-500">
               Bina riskinizi öğrenin. Haklarınızı anlayın.
