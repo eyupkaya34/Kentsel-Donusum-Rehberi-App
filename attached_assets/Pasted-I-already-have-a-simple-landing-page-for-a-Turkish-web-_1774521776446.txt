@@ -1,0 +1,123 @@
+I already have a simple landing page for a Turkish web app called “Kentsel Dönüşüm Rehberi”.
+
+I want you to improve the current page visually and structurally without making it complicated. Keep it clean, modern, trustworthy, and conversion-focused.
+
+IMPORTANT:
+- The app is in Turkish
+- The audience is homeowners, tenants, and apartment managers in Turkey
+- The tone should feel trustworthy, calm, modern, and professional
+- Do not make the design too flashy
+- Mobile responsive is required
+- Keep the page simple and elegant
+
+Please update the current page with the following improvements:
+
+1) HEADER / BRANDING
+- Keep the app name visible at the top
+- Change the branding/title to:
+  “AI Destekli Kentsel Dönüşüm Rehberi”
+- Add a subtle professional look to the header
+- Keep it minimal and modern
+
+2) HERO SECTION
+- Main headline should be stronger and more trust-building
+- Use this headline:
+  “Aklınıza Takılan Her Şeyi Sade ve Anlaşılır Şekilde Öğrenin”
+- Use this subtitle:
+  “Bina riskinizi öğrenin, haklarınızı anlayın ve sonraki adımları netleştirin.”
+- Center the content and improve spacing
+- Make the page feel more premium and balanced
+
+3) QUESTION INPUT CARD
+- Keep the card but improve its design
+- Add better padding, spacing, border radius, and subtle shadow
+- Keep the label in Turkish:
+  “Sorunuzu buraya yazın”
+- Improve the textarea placeholder to:
+  “Örnek: Binam riskli mi? Kiracı olarak haklarım neler? Kredi alabilir miyim? Müteahhit seçerken nelere dikkat etmeliyim?”
+- Make textarea feel more polished and readable
+
+4) PRIMARY CTA BUTTON
+- Change button text from:
+  “Soruyu Sor”
+  to:
+  “Analizi Başlat”
+- Make the button stronger and more premium
+- Use a confident but soft modern style
+- Add hover state and subtle transition
+
+5) EXAMPLE QUESTIONS SECTION
+- Add a new section under the main input card called:
+  “Örnek Sorular”
+- Add 4 clickable example question chips/cards:
+  - “Binam 30 yıllık, riskli olabilir mi?”
+  - “Kentsel dönüşüm süreci nasıl başlar?”
+  - “Kiracı olarak haklarım neler?”
+  - “Müteahhit seçerken nelere dikkat etmeliyim?”
+- When clicked, they should fill the textarea
+- Make them look interactive and user-friendly
+
+6) TRUST / DISCLAIMER TEXT
+- Add a small but visible trust text under the input area:
+  “Bu sistem ön bilgilendirme sağlar. Kesin teknik ve hukuki değerlendirme için uzman desteği gerekebilir.”
+- Style it clearly but not alarmingly
+- It should build trust, not scare the user
+
+7) RESULT AREA
+- Add a result/output card below the main input section
+- Before any interaction, show a placeholder text:
+  “Analiz sonucu burada görünecek...”
+- The result card should visually match the rest of the design
+- If there is already a simulated answer system, keep it and just improve the presentation
+- Make the answer area readable and structured
+
+8) EXPERT CONSULTATION SECTION
+- Improve the expert CTA area
+- Replace the current text with:
+  “Daha net ve kesin bilgi mi istiyorsunuz?”
+- Change button text to:
+  “Detaylı analiz için uzmanla görüş”
+- Add a small supporting line under or near the button:
+  “İnşaat mühendisi, jeolog veya uzman danışman desteği”
+- Make this section stand out slightly from the rest, but still feel elegant
+- This is an important conversion section
+
+9) TRUST FEATURES SECTION
+- Add a small section with 3 trust bullets/cards near the bottom:
+  - “Tarafsız analiz”
+  - “Sade ve anlaşılır açıklamalar”
+  - “Gerektiğinde uzman yönlendirme”
+- Present them in a clean, modern way
+- Can use icons if appropriate, but keep it minimal
+
+10) VISUAL IMPROVEMENTS
+- Improve overall spacing and hierarchy
+- Use a better card layout and more breathing room
+- Slightly stronger shadows and borders, but still subtle
+- Improve button colors and contrast
+- Make the page feel more polished and professional
+- Keep background clean and light
+- Do not overdesign
+
+11) RESPONSIVENESS
+- Make sure everything works well on mobile
+- Stack sections nicely on small screens
+- Buttons and inputs should be easy to tap
+- Keep font sizes readable
+
+12) UX DETAILS
+- Smooth hover states
+- Clear focus state for textarea and buttons
+- Good margin and padding consistency
+- Make it feel like a real startup MVP, not a rough draft
+
+13) FINAL GOAL
+The final page should feel like:
+- trustworthy
+- simple
+- modern
+- useful
+- ready to show early users
+
+Please directly update the code.
+After updating, also give me a short summary of what changed.
