@@ -1,0 +1,116 @@
+Refine the current web app design to feel more modern, premium, clear, and trustworthy.
+
+IMPORTANT:
+- Do NOT rebuild from scratch
+- Keep the existing structure and content
+- Improve the visual quality, spacing, typography, hierarchy, and clarity
+- The app is in Turkish
+- The audience is homeowners, tenants, and apartment managers in Turkey
+- The feeling should be: premium, modern, calm, trustworthy, simple, clear
+- Mobile responsive is required
+- Do not make it flashy, childish, or overly colorful
+
+Please improve the UI/UX in these ways:
+
+1) OVERALL VISUAL STYLE
+- Make the design feel more polished and high-quality
+- Use cleaner spacing and stronger visual hierarchy
+- Add more breathing room between sections
+- Make cards feel premium with subtle borders, soft shadows, and elegant rounded corners
+- Keep the background light and clean
+- Avoid clutter
+
+2) TYPOGRAPHY
+- Improve font hierarchy clearly
+- Headline should feel strong and premium
+- Section titles should be more readable and balanced
+- Body text should be softer and easier to read
+- Improve line height and spacing
+- Make small helper texts more elegant and less crowded
+
+3) HERO SECTION
+- Make the hero section feel more premium and focused
+- Improve spacing above and below the title
+- Make the headline easier to scan
+- Improve subtitle styling and width so it reads better
+- Add a subtle premium layout touch without making it busy
+
+4) INPUT / PDF / RESULT CARDS
+- Make all cards visually consistent
+- Improve padding, border radius, border color, and shadow
+- Make the textarea and upload area look more premium
+- Improve empty states and placeholder text styling
+- Add better focus states for textarea, upload box, and buttons
+
+5) BUTTONS
+- Make primary buttons feel more premium and modern
+- Improve button height, padding, radius, typography, and contrast
+- Add subtle hover and active states
+- Make CTA buttons feel confident and elegant
+- Ensure the expert consultation CTA stands out slightly more than the rest
+
+6) EXAMPLE QUESTION CHIPS
+- Redesign the example question chips/cards to feel more modern
+- Make them look clickable and smart
+- Improve spacing, border, hover effect, and typography
+- Keep them simple and clean
+
+7) RESULT PRESENTATION
+- Make the result section easier to scan
+- Use visual separation between:
+  - Kısa Özet
+  - Olası Riskler
+  - Eksik Bilgiler
+  - Sonraki Adımlar
+  - Güven Seviyesi
+- Use spacing, subtle dividers, icons, or layout improvements
+- Make it feel like a professional analysis report
+
+8) TRUST AND CLARITY
+- Improve the visual presentation of trust/disclaimer texts
+- Keep them visible but elegant
+- They should reassure the user, not scare them
+- Add subtle visual emphasis to trust-building items
+
+9) EXPERT CONSULTATION SECTION
+- Make this section feel more premium and conversion-focused
+- Improve the title, subtitle, spacing, and button placement
+- It should feel important but not aggressive
+- Use design cues that make it look like a valuable next step
+
+10) CONSISTENCY
+- Make all sections visually belong to the same product
+- Use a consistent spacing system
+- Use a consistent radius system
+- Use a consistent shadow and border style
+- Make the whole page feel like a real startup MVP, not a rough draft
+
+11) MICRO-INTERACTIONS
+- Add subtle hover transitions
+- Add soft focus states
+- Add smooth interaction feedback
+- Keep it professional and minimal
+
+12) MOBILE EXPERIENCE
+- Make sure all sections stack beautifully on mobile
+- Improve spacing and readability on smaller screens
+- Keep buttons easy to tap
+- Avoid cramped layouts
+
+13) FINAL GOAL
+The final result should feel:
+- modern
+- premium
+- trustworthy
+- clear
+- calm
+- easy to understand
+- ready to show real users and potential paying customers
+
+Do not overdesign.
+Do not make it look like a generic template.
+Make it feel like a serious early-stage startup product.
+
+After updating, briefly explain:
+1. What visual improvements you made
+2. Why the new version feels more premium and clear
