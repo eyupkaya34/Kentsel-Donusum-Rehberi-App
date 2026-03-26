@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
+import AppFooter from "@/components/AppFooter";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -216,6 +217,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [pageCount, setPageCount] = useState<number | null>(null);
+  const [kvkkConsent, setKvkkConsent] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
@@ -376,11 +378,34 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         </div>
       )}
 
+      {/* KVKK consent checkbox */}
+      {pdfState === "selected" && (
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={kvkkConsent}
+            onChange={(e) => setKvkkConsent(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-[#C5D3E8] text-[#1B2E4B] accent-[#1B2E4B] cursor-pointer flex-shrink-0"
+          />
+          <span className="text-xs text-[#6B7280] leading-relaxed group-hover:text-[#2D2D2D] transition-colors">
+            <Link href="/kullanim-kosullari" className="text-[#C9A84C] hover:underline font-medium" onClick={(e) => e.stopPropagation()}>
+              Kullanım Koşullarını
+            </Link>{" "}
+            ve{" "}
+            <Link href="/kvkk" className="text-[#C9A84C] hover:underline font-medium" onClick={(e) => e.stopPropagation()}>
+              KVKK Aydınlatma Metnini
+            </Link>{" "}
+            okudum, kabul ediyorum.
+          </span>
+        </label>
+      )}
+
       {/* Analyze button */}
       {pdfState === "selected" && (
         <button
           onClick={handleAnalyze}
-          className="w-full bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] text-white font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-sm"
+          disabled={!kvkkConsent}
+          className="w-full bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] disabled:bg-[#E8E3DC] disabled:text-[#A0A0A0] disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-sm"
         >
           Belgeyi Analiz Et
         </button>
@@ -698,14 +723,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#E8E3DC] bg-[#1B2E4B] py-6 px-6 mt-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <p className="text-xs text-white/50 leading-relaxed">
-            Bu bilgiler genel rehberlik amaçlıdır. Hukuki karar değildir.
-          </p>
-        </div>
-      </footer>
+      <AppFooter />
     </div>
   );
 }

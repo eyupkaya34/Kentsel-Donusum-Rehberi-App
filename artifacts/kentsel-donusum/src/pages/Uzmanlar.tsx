@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import AppFooter from "@/components/AppFooter";
 
 const CATEGORIES = [
   "Tümü",
@@ -400,14 +401,7 @@ export default function Uzmanlar() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#E8E3DC] bg-[#1B2E4B] py-6 px-6 mt-6">
-        <div className="max-w-5xl mx-auto text-center">
-          <p className="text-xs text-white/50 leading-relaxed">
-            Bu bilgiler genel rehberlik amaçlıdır. Hukuki karar değildir.
-          </p>
-        </div>
-      </footer>
+      <AppFooter />
 
       {/* Contact modal */}
       {contactExpert && (
