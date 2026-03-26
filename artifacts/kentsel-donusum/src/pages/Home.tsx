@@ -220,6 +220,165 @@ type PdfState = "empty" | "selected" | "analyzing" | "done";
 
 const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const JSPDF_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+
+async function loadJsPDF(): Promise<any> {
+  if ((window as any).jspdf?.jsPDF) return (window as any).jspdf.jsPDF;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = JSPDF_CDN;
+    script.onload = () => resolve();
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return (window as any).jspdf.jsPDF;
+}
+
+async function downloadPdfReport(
+  fileName: string,
+  sections: { label: string; lines: string[] }[],
+  rawText: string
+): Promise<void> {
+  const JsPDF = await loadJsPDF();
+  const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const MARGIN = 18;
+  const PAGE_W = 210;
+  const PAGE_H = 297;
+  const CONTENT_W = PAGE_W - MARGIN * 2;
+  const LINE_H = 5.5;
+  const FOOTER_H = 32;
+
+  const navy = [27, 46, 75] as [number, number, number];
+  const gold = [201, 168, 76] as [number, number, number];
+  const dark = [45, 45, 45] as [number, number, number];
+  const grey = [107, 114, 128] as [number, number, number];
+  const lightGrey = [200, 200, 200] as [number, number, number];
+
+  let y = MARGIN;
+
+  const ensureSpace = (needed: number) => {
+    if (y + needed > PAGE_H - FOOTER_H - 5) {
+      addFooter();
+      doc.addPage();
+      y = MARGIN;
+    }
+  };
+
+  const addFooter = () => {
+    const footerY = PAGE_H - 22;
+    doc.setDrawColor(...gold);
+    doc.setLineWidth(0.4);
+    doc.line(MARGIN, footerY, PAGE_W - MARGIN, footerY);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...grey);
+    const disc = "Bu rapor genel bilgilendirme amaclidir. Kesin hukuki veya muhendislik karari niteligi tasimazsiniz. Onemli kararlar icin lisansli uzman gorusu aliniz.";
+    const discLines = doc.splitTextToSize(disc, CONTENT_W);
+    doc.text(discLines, MARGIN, footerY + 4);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...gold);
+    doc.text("kentseldonusumrehberi.com", MARGIN, footerY + 4 + discLines.length * 3.8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...lightGrey);
+    const dateStr = new Date().toLocaleDateString("tr-TR");
+    doc.text(dateStr, PAGE_W - MARGIN, footerY + 4 + discLines.length * 3.8, { align: "right" });
+  };
+
+  // ── PAGE 1 HEADER ─────────────────────────────────────────────────────────
+  // App title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(...navy);
+  doc.text("Kentsel Donusum Rehberi", MARGIN, y);
+  y += 7;
+
+  // Gold separator
+  doc.setDrawColor(...gold);
+  doc.setLineWidth(1);
+  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
+  y += 5;
+
+  // Subtitle
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(9);
+  doc.setTextColor(...grey);
+  doc.text("Yapay Zeka Destekli On Analiz Raporu", MARGIN, y);
+  y += 7;
+
+  // Document name
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...dark);
+  const fileLabel = doc.splitTextToSize(`Analiz Edilen Belge: ${fileName}`, CONTENT_W);
+  doc.text(fileLabel, MARGIN, y);
+  y += fileLabel.length * LINE_H;
+
+  // Date/time
+  const now = new Date();
+  const dateTimeStr = now.toLocaleString("tr-TR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...grey);
+  doc.text(`Analiz Tarihi: ${dateTimeStr}`, MARGIN, y);
+  y += 10;
+
+  // ── SECTIONS ──────────────────────────────────────────────────────────────
+  const renderSections = sections.length > 0
+    ? sections
+    : [{ label: "Analiz Sonucu", lines: rawText.split("\n").filter(Boolean) }];
+
+  for (const section of renderSections) {
+    ensureSpace(18);
+
+    // Section heading background strip
+    doc.setFillColor(...navy);
+    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 8, 1.5, 1.5, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text(section.label, MARGIN + 4, y + 0.5);
+    y += 9;
+
+    // Section content
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...dark);
+
+    for (const line of section.lines) {
+      const isBullet = line.startsWith("•") || line.startsWith("-");
+      const prefix = isBullet ? "• " : "";
+      const text = isBullet ? line.replace(/^[•\-]\s*/, "") : line;
+      const indent = isBullet ? MARGIN + 5 : MARGIN + 2;
+      const width = CONTENT_W - (isBullet ? 7 : 4);
+      const wrapped = doc.splitTextToSize(prefix + text, width);
+      ensureSpace(wrapped.length * LINE_H + 2);
+
+      if (isBullet) {
+        doc.setTextColor(...gold);
+        doc.text("•", MARGIN + 2, y);
+        doc.setTextColor(...dark);
+        const textOnly = doc.splitTextToSize(text, width - 3);
+        doc.text(textOnly, indent, y);
+        y += textOnly.length * LINE_H;
+      } else {
+        doc.text(wrapped, indent, y);
+        y += wrapped.length * LINE_H;
+      }
+      y += 1;
+    }
+    y += 4;
+  }
+
+  addFooter();
+
+  const slug = fileName.replace(/\.pdf$/i, "").replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
+  doc.save(`KDR_Analiz_${slug}.pdf`);
+}
 
 async function extractPdfText(file: File): Promise<string> {
   if (!(window as any).pdfjsLib) {
@@ -304,6 +463,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
   const [fileInfo, setFileInfo] = useState<string | null>(null);
   const [softWarning, setSoftWarning] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pdfStreamRef = useRef<string>("");
@@ -640,11 +800,36 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       {/* Result */}
       {pdfState === "done" && pdfAnswer && (
         <div className="flex flex-col gap-3">
-          {/* ✅ Message 7 — always visible on completion */}
+          {/* ✅ Completion banner + download button */}
           <div className="flex items-center gap-3 rounded-xl bg-[#FDF8F0] border border-[#E8E3DC] border-l-[3px] border-l-[#C9A84C] px-5 py-4 shadow-sm">
             <span className="text-lg flex-shrink-0">✅</span>
             <p className="text-sm font-semibold text-[#1B2E4B] leading-snug">Analiz tamamlandı!</p>
           </div>
+
+          {/* 📥 Download report button */}
+          <button
+            onClick={async () => {
+              setIsGeneratingReport(true);
+              try {
+                await downloadPdfReport(fileName, pdfSections, pdfAnswer);
+              } catch (e) {
+                console.error("Report generation failed:", e);
+              } finally {
+                setIsGeneratingReport(false);
+              }
+            }}
+            disabled={isGeneratingReport}
+            className="w-full flex items-center justify-center gap-2 bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] disabled:opacity-60 disabled:cursor-not-allowed text-[#C9A84C] font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-md border border-[#C9A84C]/30"
+          >
+            {isGeneratingReport ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+                <span>Rapor hazırlanıyor...</span>
+              </>
+            ) : (
+              <span>📥 Raporu İndir — 49,99 TL</span>
+            )}
+          </button>
 
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold text-[#1B2E4B] uppercase tracking-widest">Belge Analiz Sonucu</p>
