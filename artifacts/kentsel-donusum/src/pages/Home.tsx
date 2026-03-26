@@ -124,6 +124,10 @@ const PDF_SECTION_KEYS = [
 ];
 
 
+function stripMarkdown(s: string): string {
+  return s.replace(/^\*+/, "").replace(/\*+$/, "").replace(/^#+\s*/, "").trim();
+}
+
 function parseAnswer(
   raw: string,
   sectionKeys: { key: string; label: string; color: string }[]
@@ -132,7 +136,7 @@ function parseAnswer(
   let current: { label: string; color: string; lines: string[] } | null = null;
 
   for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
+    const trimmed = stripMarkdown(line.trim());
     const match = sectionKeys.find((s) => trimmed.startsWith(s.key));
     if (match) {
       if (current) sections.push(current);
@@ -670,10 +674,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
               ))}
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-gray-400 text-sm py-1">
-              <span className="inline-block w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-              <span>Analiz hazırlanıyor...</span>
-            </div>
+            <MdBlock text={pdfAnswer} className="text-sm text-[#2D2D2D]" />
           )}
 
           {/* Expert CTA — show only when full result is parsed */}
