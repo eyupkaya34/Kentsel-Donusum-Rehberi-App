@@ -21,7 +21,15 @@ export default function AppFooter() {
             KVKK Aydınlatma Metni
           </Link>
         </div>
-        <p className="text-[10px] text-white/30">© 2024 Kentsel Dönüşüm Rehberi. Tüm hakları saklıdır.</p>
+        <p className="text-[10px] text-white/30">
+          <a
+            href="https://kentseldonusumrehber.com.tr"
+            className="text-[#C9A84C]/60 hover:text-[#C9A84C] transition-colors"
+          >
+            kentseldonusumrehber.com.tr
+          </a>
+        </p>
+        <p className="text-[10px] text-white/30">© {new Date().getFullYear()} Kentsel Dönüşüm Rehberi. Tüm hakları saklıdır.</p>
       </div>
     </footer>
   );

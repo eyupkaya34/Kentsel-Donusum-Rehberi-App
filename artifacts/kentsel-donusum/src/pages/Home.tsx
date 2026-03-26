@@ -657,7 +657,7 @@ function openPrintReport(
     <div class="run-footer-gold"></div>
     <div class="run-footer-inner">
       <span class="run-footer-disc">Bu rapor bilgilendirme amaçlıdır; hukuki veya teknik tavsiye niteliği taşımaz.</span>
-      <span class="run-footer-site">kentseldonusumrehberi.com · ${escHtml(dateStr)}</span>
+      <span class="run-footer-site">kentseldonusumrehber.com.tr · ${escHtml(dateStr)}</span>
     </div>
   </div>
 
@@ -687,7 +687,7 @@ function openPrintReport(
       <div class="cover-tagline">
         Bu rapor yapay zeka tarafından üretilmiştir.<br>
         Uzman görüşü değildir — Yasal bağlayıcılığı yoktur.<br><br>
-        kentseldonusumrehberi.com
+        kentseldonusumrehber.com.tr
       </div>
     </div>
 
@@ -848,7 +848,7 @@ function openPrintReport(
           Kentsel dönüşüm haklarınızı koruyun.<br>
           Sözleşmenizi imzalamadan önce profesyonel destek alın.
         </div>
-        <span class="expert-cta-url">kentseldonusumrehberi.com</span>
+        <span class="expert-cta-url">kentseldonusumrehber.com.tr</span>
       </div>
     </div>
 
@@ -862,7 +862,7 @@ function openPrintReport(
           Önemli kararlar için lisanslı uzman görüşü alınız. © ${now.getFullYear()} Kentsel Dönüşüm Rehberi
         </div>
         <div class="doc-footer-right">
-          <div class="doc-footer-site">kentseldonusumrehberi.com</div>
+          <div class="doc-footer-site">kentseldonusumrehber.com.tr</div>
           <div class="doc-footer-date">${escHtml(dateOnlyStr)}</div>
         </div>
       </div>

@@ -30,7 +30,7 @@ const SECTIONS = [
   {
     title: "6. İletişim",
     content:
-      "Kullanım koşullarına ilişkin soru ve görüşleriniz için lütfen bizimle iletişime geçin. E-posta adresimiz yakın zamanda bu alanda paylaşılacaktır. [E-posta adresi eklenecek]",
+      "Kullanım koşullarına ilişkin soru ve görüşleriniz için kentseldonusumrehber.com.tr adresimiz üzerinden bizimle iletişime geçebilirsiniz.",
   },
 ];
 

@@ -35,7 +35,7 @@ const SECTIONS = [
   {
     title: "7. İletişim",
     content:
-      "KVKK kapsamındaki haklarınızı kullanmak veya veri işleme pratiklerimiz hakkında bilgi almak için bizimle iletişime geçebilirsiniz. Taleplerinizi en geç 30 gün içinde yanıtlamakla yükümlüyüz. E-posta adresimiz yakın zamanda bu alanda paylaşılacaktır. [E-posta adresi eklenecek]",
+      "KVKK kapsamındaki haklarınızı kullanmak veya veri işleme pratiklerimiz hakkında bilgi almak için kentseldonusumrehber.com.tr adresimiz üzerinden bizimle iletişime geçebilirsiniz. Taleplerinizi en geç 30 gün içinde yanıtlamakla yükümlüyüz.",
   },
 ];
 
