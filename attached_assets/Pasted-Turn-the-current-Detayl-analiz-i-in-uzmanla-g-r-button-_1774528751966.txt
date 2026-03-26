@@ -1,0 +1,177 @@
+Turn the current “Detaylı analiz için uzmanla görüş” button into a real navigation flow.
+
+IMPORTANT:
+- Do NOT use alert or popup anymore
+- Keep the current design language
+- The app is in Turkish
+- The experience should feel modern, trustworthy, and premium
+- Do NOT rebuild the whole project
+- Just add this new expert directory flow cleanly
+
+GOAL:
+When the user clicks the expert consultation button:
+- On web: open a new page/route inside the website
+- On mobile: open a new screen/section that feels like moving to the expert tab/page
+- The destination should be a real expert listing page
+
+IMPLEMENT THE FOLLOWING:
+
+1) BUTTON BEHAVIOR
+- Replace the current popup/alert behavior
+- Make the button navigate to a new route/page:
+  `/uzmanlar`
+- Use proper routing/navigation in the current stack
+- Keep button text:
+  “Detaylı analiz için uzmanla görüş”
+
+2) CREATE EXPERTS PAGE
+Create a new page/route called:
+- “Uzmanlar”
+- URL: `/uzmanlar`
+
+This page should include:
+
+A) Page header
+Title:
+“Uzman Uzmanlar ile Görüşün”
+OR better Turkish if appropriate:
+“Alanında Uzman Danışmanlarla Görüşün”
+
+Subtitle:
+“İhtiyacınıza uygun uzmanı seçin, kısa profilini inceleyin ve danışmanlık ücretini görün.”
+
+B) Top filter / category area
+Add simple category filter chips or buttons:
+- Tümü
+- İnşaat Mühendisi
+- Jeoloji Uzmanı
+- Hukuk Danışmanı
+- Kentsel Dönüşüm Danışmanı
+
+These should filter the visible expert cards.
+
+C) Search input
+Placeholder:
+“Uzman adı veya uzmanlık alanı ara”
+
+3) EXPERT PROFILE CARDS
+Create a clean, modern expert directory layout.
+
+Each expert card must include:
+- avatar
+- full name
+- title/unvan
+- short about text
+- expertise areas / uzmanlık alanları
+- consultation price / danışmanlık ücreti
+- a CTA button
+
+Card content format in Turkish:
+- Avatar
+- Ad Soyad
+- Unvan
+- Hakkında kısa bilgi
+- Uzmanlık Alanları
+- Danışmanlık Ücreti
+- Button: “Randevu Al” or “Görüşme Talep Et”
+
+Design requirements:
+- cards should feel premium and trustworthy
+- use soft shadows, nice spacing, rounded corners
+- keep layout clean and readable
+- mobile responsive
+- grid on desktop, stacked cards on mobile
+
+4) SAMPLE EXPERT DATA
+Add at least 6 sample experts with realistic Turkish content.
+
+Example structure:
+- 2 İnşaat Mühendisi
+- 2 Jeoloji / Zemin Uzmanı
+- 1 Hukuk Danışmanı
+- 1 Kentsel Dönüşüm Danışmanı
+
+Use realistic Turkish names, titles, expertise areas, and price examples like:
+- 1.500 TL
+- 2.000 TL
+- 2.500 TL
+
+Each profile should have:
+- name
+- title
+- short trustworthy bio
+- 3 to 5 expertise tags
+- price
+
+5) EXPERT CARD CTA
+When user clicks the expert card button:
+- do NOT show browser alert
+- instead open a small inline modal, drawer, or dedicated detail section
+- show a simple contact/request form
+
+Form fields:
+- Ad Soyad
+- Telefon
+- Kısa Not
+- Preferred consultation type:
+  - Online Görüşme
+  - Telefon Görüşmesi
+  - Ön Değerlendirme
+
+Submit button:
+- “Talep Gönder”
+
+For MVP:
+- form submission can be simulated
+- after submit, show elegant success message:
+  “Talebiniz alınmıştır. En kısa sürede sizinle iletişime geçilecektir.”
+
+6) MOBILE EXPERIENCE
+On mobile:
+- the experts page should feel like a separate app screen
+- keep spacing comfortable
+- cards should stack vertically
+- filter chips should scroll nicely if needed
+- buttons must be easy to tap
+
+7) WEB EXPERIENCE
+On desktop:
+- experts page should feel like a real directory page
+- use 2 or 3 column grid depending on screen size
+- keep a balanced layout and good spacing
+
+8) TRUST ELEMENTS
+At the top or near the cards, add a small trust section:
+- “Profil bilgileri örnek amaçlı gösterilmektedir.”
+OR if better:
+- “Uzman bilgileri demo içeriktir. Gerçek uzman entegrasyonu bir sonraki aşamada yapılacaktır.”
+
+Also add small trust bullets:
+- Uzmanlık alanına göre filtreleme
+- Şeffaf ücret bilgisi
+- Kolay talep oluşturma
+
+9) VISUAL QUALITY
+Make this page feel:
+- modern
+- premium
+- trustworthy
+- clear
+- calm
+- professional
+
+Do not make it look generic.
+Do not use harsh colors.
+Use consistent styling with the rest of the app.
+
+10) FILES / IMPLEMENTATION
+- Add the new page and routing cleanly
+- Reuse the current design system if available
+- Remove old popup behavior
+- Make sure the main CTA button now navigates correctly
+
+11) AFTER IMPLEMENTING
+Please explain briefly:
+1. What files you changed
+2. How the routing works now
+3. How I can edit the expert profiles later

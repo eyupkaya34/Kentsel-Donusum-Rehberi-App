@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { useLocation } from "wouter";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -507,9 +508,8 @@ export default function Home() {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleAsk();
   };
 
-  const handleExpert = () => {
-    alert("Bir uzmanla görüşmek için: Mimarlar Odası veya Barolar Birliği'ne başvurabilirsiniz.");
-  };
+  const [, navigate] = useLocation();
+  const handleExpert = () => navigate("/uzmanlar");
 
   const parsedSections = rawAnswer ? parseAnswer(rawAnswer, SECTION_KEYS) : [];
 
