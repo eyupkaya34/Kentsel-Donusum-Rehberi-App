@@ -272,6 +272,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const [tipVisible, setTipVisible] = useState(true);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Rotate tips every 4 seconds while analyzing, with a smooth fade
   useEffect(() => {
@@ -313,27 +314,42 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
     setPdfError("");
     setEstimatedTime(null);
     setStatusMsg("📄 Belgeniz yükleniyor...");
-    setPct(0);
     setTipIdx(0);
     setTipVisible(true);
+
+    // Jump to 15% immediately, then crawl to 85% over ~40s
+    setPct(15);
+    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+    progressTimerRef.current = setInterval(() => {
+      setPct((prev) => {
+        if (prev >= 85) {
+          if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+          return 85;
+        }
+        return Math.min(prev + 1.75, 85);
+      });
+    }, 1000);
+
     try {
       await analyzePdf(pdfFile, {
         onConnected: () => {
           setStatusMsg("🔍 Belge Claude'a gönderiliyor...");
           setEstimatedTime("Tahmini süre: 30-60 saniye");
-          setPct(30);
         },
         onFinalStart: () => {
           setStatusMsg("📝 Analiz yapılıyor, rapor hazırlanıyor...");
+          if (progressTimerRef.current) clearInterval(progressTimerRef.current);
           setPct(90);
         },
         onChunk: (chunk) => {
           setPdfAnswer((prev) => prev + chunk);
         },
       });
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
       setPct(100);
       setPdfState("done");
     } catch (e) {
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
       const msg = e instanceof Error ? e.message : "Analiz sırasında bir hata oluştu.";
       setPdfError(msg);
       setPdfState("selected");
@@ -343,6 +359,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   };
 
   const handleReset = () => {
+    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     setPdfState("empty");
     setFileName("");
     setPdfFile(null);
@@ -499,7 +516,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <p className="text-xs text-[#6B7280]">{getMicroMsg(pct)}</p>
-              <p className="text-xs font-bold text-[#C9A84C] tabular-nums">{pct}%</p>
+              <p className="text-xs font-bold text-[#C9A84C] tabular-nums">{Math.round(pct)}%</p>
             </div>
             <div className="w-full bg-[#E8E3DC] rounded-full h-2.5 overflow-hidden">
               <div
