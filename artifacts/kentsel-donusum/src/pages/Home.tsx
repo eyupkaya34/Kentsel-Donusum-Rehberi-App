@@ -59,22 +59,28 @@ async function countPdfPages(file: File): Promise<number> {
 }
 
 async function askClaude(question: string, onChunk: (text: string) => void): Promise<void> {
-  const createRes = await fetch(`${BASE}/api/anthropic/conversations`, {
+  if (!question || question.trim().length < 5) {
+    throw new Error("Soru çok kısa. Lütfen daha detaylı bir soru yazın.");
+  }
+
+  const res = await fetch(`${BASE}/api/anthropic/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: question.slice(0, 60) }),
+    body: JSON.stringify({ question: question.trim() }),
   });
-  if (!createRes.ok) throw new Error("Konuşma oluşturulamadı.");
-  const conversation = await createRes.json();
 
-  const msgRes = await fetch(`${BASE}/api/anthropic/conversations/${conversation.id}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content: question }),
-  });
-  if (!msgRes.ok || !msgRes.body) throw new Error("Yanıt alınamadı.");
+  if (!res.body) throw new Error("Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.");
 
-  const reader = msgRes.body.getReader();
+  if (!res.ok) {
+    let msg = "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.";
+    try {
+      const j = await res.json();
+      if (j.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   while (true) {
@@ -87,8 +93,11 @@ async function askClaude(question: string, onChunk: (text: string) => void): Pro
       if (line.startsWith("data: ")) {
         try {
           const payload = JSON.parse(line.slice(6));
+          if (payload.error) throw new Error(payload.error);
           if (payload.content) onChunk(payload.content);
-        } catch {}
+        } catch (e) {
+          if (e instanceof Error && e.message !== "JSON parse") throw e;
+        }
       }
     }
   }
@@ -1581,8 +1590,9 @@ export default function Home() {
     setHasAsked(true);
     try {
       await askClaude(question, (chunk) => setRawAnswer((prev) => prev + chunk));
-    } catch {
-      setError("Bir hata oluştu. Lütfen tekrar deneyin.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.";
+      setError(msg);
     } finally {
       setLoading(false);
     }

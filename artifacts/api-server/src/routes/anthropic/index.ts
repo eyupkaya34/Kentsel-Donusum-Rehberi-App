@@ -158,4 +158,77 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
   }
 });
 
+// ── Chat — dedicated stateless endpoint (no DB) ────────────────────────────────
+const CHAT_SYSTEM = `Sen Türkiye'de kentsel dönüşüm ve yapı denetimi konusunda uzman bir rehbersin.
+Kullanıcıların sorularını sade, anlaşılır Türkçe ile yanıtla.
+Kesin hukuki veya mühendislik kararı verme; gerektiğinde uzman görüşü alınmasını tavsiye et.
+
+Yanıtını MUTLAKA aşağıdaki yapıda ver:
+🔹 Kısa Özet
+🔹 Olası Riskler
+🔹 Eksik Bilgiler
+🔹 Sonraki Adımlar
+🔹 Güven Seviyesi %[0-100]`;
+
+router.post("/chat", async (req: Request, res: Response) => {
+  const { question } = req.body as { question?: string };
+
+  if (!question || question.trim().length === 0) {
+    res.status(400).json({ error: "Soru boş olamaz." });
+    return;
+  }
+  if (question.trim().length < 5) {
+    res.status(400).json({ error: "Soru çok kısa. Lütfen daha detaylı bir soru yazın." });
+    return;
+  }
+
+  console.log(`[chat] → "${question.slice(0, 80)}"`);
+  const t0 = Date.now();
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  const timeout = setTimeout(() => {
+    console.error("[chat] ❌ Timeout after 60s");
+    send({ error: "Servis şu an yoğun. 30 saniye bekleyip tekrar deneyin." });
+    res.end();
+  }, 60_000);
+
+  try {
+    const stream = anthropic.messages.stream({
+      model: "claude-sonnet-4-5",
+      max_tokens: 1000,
+      system: CHAT_SYSTEM,
+      messages: [{ role: "user", content: question.trim() }],
+    });
+
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        send({ content: event.delta.text });
+      }
+    }
+
+    clearTimeout(timeout);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log(`[chat] ✅ Done in ${elapsed}s`);
+    send({ done: true });
+    res.end();
+  } catch (err) {
+    clearTimeout(timeout);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[chat] ❌ Error: ${msg}`);
+
+    const userMsg = msg.includes("overloaded") || msg.includes("529")
+      ? "Servis şu an yoğun. 30 saniye bekleyip tekrar deneyin."
+      : msg.includes("rate_limit") || msg.includes("429")
+        ? "İstek limiti aşıldı. Lütfen 1 dakika bekleyin."
+        : "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.";
+    send({ error: userMsg });
+    res.end();
+  }
+});
+
 export default router;
