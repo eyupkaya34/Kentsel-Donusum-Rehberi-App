@@ -1,6 +1,48 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation, Link } from "wouter";
+import ReactMarkdown from "react-markdown";
 import AppFooter from "@/components/AppFooter";
+
+function MdInline({ text, className }: { text: string; className?: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        p: ({ children }) => <span className={className}>{children}</span>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+}
+
+function MdBlock({ text, className }: { text: string; className?: string }) {
+  return (
+    <div className={className}>
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          ul: ({ children }) => <ul className="space-y-1 my-1">{children}</ul>,
+          ol: ({ children }) => <ol className="space-y-1 my-1 list-decimal list-inside">{children}</ol>,
+          li: ({ children }) => (
+            <li className="flex gap-2 text-sm leading-relaxed">
+              <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0 mt-2 opacity-50" />
+              <span>{children}</span>
+            </li>
+          ),
+          h1: ({ children }) => <p className="font-semibold text-sm mb-1">{children}</p>,
+          h2: ({ children }) => <p className="font-semibold text-sm mb-1">{children}</p>,
+          h3: ({ children }) => <p className="font-semibold text-sm mb-1">{children}</p>,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -128,9 +170,11 @@ function AnswerSection({ label, color, lines }: { label: string; color: string; 
               {line.startsWith("-") ? (
                 <span className="flex gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0 mt-2 opacity-50" />
-                  <span>{line.slice(1).trim()}</span>
+                  <MdInline text={line.slice(1).trim()} />
                 </span>
-              ) : line}
+              ) : (
+                <MdInline text={line} />
+              )}
             </li>
           ))}
         </ul>
@@ -516,7 +560,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
                   <AnswerSection key={section.label} {...section} />
                 ))
               ) : (
-                <p className="text-sm text-[#2D2D2D] leading-relaxed whitespace-pre-wrap">{pdfAnswer}</p>
+                <MdBlock text={pdfAnswer} className="text-sm text-[#2D2D2D]" />
               )}
             </div>
           )}
@@ -748,7 +792,7 @@ export default function Home() {
             )}
 
             {rawAnswer && parsedSections.length === 0 && (
-              <p className="text-[#2D2D2D] text-sm leading-relaxed whitespace-pre-wrap">{rawAnswer}</p>
+              <MdBlock text={rawAnswer} className="text-sm text-[#2D2D2D]" />
             )}
 
             {hasAsked && !loading && rawAnswer && (
