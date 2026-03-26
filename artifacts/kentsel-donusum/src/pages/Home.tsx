@@ -59,48 +59,29 @@ async function countPdfPages(file: File): Promise<number> {
 }
 
 async function askClaude(question: string, onChunk: (text: string) => void): Promise<void> {
-  if (!question || question.trim().length < 5) {
-    throw new Error("Soru çok kısa. Lütfen daha detaylı bir soru yazın.");
+  const trimmed = question.trim().slice(0, 1000);
+  if (trimmed.length < 10) {
+    throw new Error("Lütfen daha detaylı bir soru yazın.");
   }
 
   const res = await fetch(`${BASE}/api/anthropic/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question: question.trim() }),
+    body: JSON.stringify({ question: trimmed }),
   });
 
-  if (!res.body) throw new Error("Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.");
-
-  if (!res.ok) {
-    let msg = "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.";
-    try {
-      const j = await res.json();
-      if (j.error) msg = j.error;
-    } catch {}
-    throw new Error(msg);
+  let json: { answer?: string; error?: string };
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.");
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          const payload = JSON.parse(line.slice(6));
-          if (payload.error) throw new Error(payload.error);
-          if (payload.content) onChunk(payload.content);
-        } catch (e) {
-          if (e instanceof Error && e.message !== "JSON parse") throw e;
-        }
-      }
-    }
+  if (!res.ok || json.error) {
+    throw new Error(json.error ?? "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.");
   }
+
+  if (json.answer) onChunk(json.answer);
 }
 
 const EXAMPLE_QUESTIONS = [

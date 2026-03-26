@@ -158,76 +158,62 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
   }
 });
 
-// ── Chat — dedicated stateless endpoint (no DB) ────────────────────────────────
-const CHAT_SYSTEM = `Sen Türkiye'de kentsel dönüşüm ve yapı denetimi konusunda uzman bir rehbersin.
-Kullanıcıların sorularını sade, anlaşılır Türkçe ile yanıtla.
-Kesin hukuki veya mühendislik kararı verme; gerektiğinde uzman görüşü alınmasını tavsiye et.
-
-Yanıtını MUTLAKA aşağıdaki yapıda ver:
-🔹 Kısa Özet
-🔹 Olası Riskler
-🔹 Eksik Bilgiler
-🔹 Sonraki Adımlar
-🔹 Güven Seviyesi %[0-100]`;
+// ── Chat — stateless, non-streaming endpoint ───────────────────────────────────
+const CHAT_SYSTEM =
+  "Sen kentsel dönüşüm konusunda yardımcı bir rehbersin. " +
+  "Soruları sade ve anlaşılır Türkçe ile yanıtla. " +
+  "Maksimum 3-4 cümle kullan. " +
+  "Kesin hukuki karar verme. " +
+  "Gerekirse uzman görüşü öner.";
 
 router.post("/chat", async (req: Request, res: Response) => {
   const { question } = req.body as { question?: string };
+  const trimmed = (question ?? "").trim().slice(0, 1000);
 
-  if (!question || question.trim().length === 0) {
-    res.status(400).json({ error: "Soru boş olamaz." });
-    return;
-  }
-  if (question.trim().length < 5) {
-    res.status(400).json({ error: "Soru çok kısa. Lütfen daha detaylı bir soru yazın." });
+  if (trimmed.length < 10) {
+    res.status(400).json({ error: "Lütfen daha detaylı bir soru yazın." });
     return;
   }
 
-  console.log(`[chat] → "${question.slice(0, 80)}"`);
+  console.log(`[chat] → "${trimmed.slice(0, 80)}"`);
   const t0 = Date.now();
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-
+  const controller = new AbortController();
   const timeout = setTimeout(() => {
-    console.error("[chat] ❌ Timeout after 60s");
-    send({ error: "Servis şu an yoğun. 30 saniye bekleyip tekrar deneyin." });
-    res.end();
-  }, 60_000);
+    controller.abort();
+    console.error("[chat] ❌ Timeout after 25s");
+  }, 25_000);
 
   try {
-    const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
-      max_tokens: 1000,
-      system: CHAT_SYSTEM,
-      messages: [{ role: "user", content: question.trim() }],
-    });
-
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        send({ content: event.delta.text });
-      }
-    }
+    const response = await anthropic.messages.create(
+      {
+        model: "claude-sonnet-4-5",
+        max_tokens: 800,
+        system: CHAT_SYSTEM,
+        messages: [{ role: "user", content: trimmed }],
+      },
+      { signal: controller.signal },
+    );
 
     clearTimeout(timeout);
+    const text = response.content.find((b) => b.type === "text")?.text ?? "";
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-    console.log(`[chat] ✅ Done in ${elapsed}s`);
-    send({ done: true });
-    res.end();
+    console.log(`[chat] ✅ Done in ${elapsed}s (${text.length} chars)`);
+    res.json({ answer: text });
   } catch (err) {
     clearTimeout(timeout);
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[chat] ❌ Error: ${msg}`);
 
-    const userMsg = msg.includes("overloaded") || msg.includes("529")
-      ? "Servis şu an yoğun. 30 saniye bekleyip tekrar deneyin."
-      : msg.includes("rate_limit") || msg.includes("429")
-        ? "İstek limiti aşıldı. Lütfen 1 dakika bekleyin."
-        : "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.";
-    send({ error: userMsg });
-    res.end();
+    const isTimeout = msg.includes("abort") || msg.includes("AbortError") || msg.includes("timed out");
+    const userMsg = isTimeout
+      ? "Yanıt süresi doldu. Lütfen sorunuzu daha kısa yazın ve tekrar deneyin."
+      : msg.includes("overloaded") || msg.includes("529")
+        ? "Servis şu an yoğun. 30 saniye bekleyip tekrar deneyin."
+        : msg.includes("rate_limit") || msg.includes("429")
+          ? "İstek limiti aşıldı. Lütfen 1 dakika bekleyin."
+          : "Sunucu bağlantı hatası. Lütfen sayfayı yenileyip tekrar deneyin.";
+    res.status(503).json({ error: userMsg });
   }
 });
 
