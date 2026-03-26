@@ -92,12 +92,12 @@ function parseAnswer(
 }
 
 const colorMap: Record<string, { bg: string; border: string; badge: string; text: string }> = {
-  blue:   { bg: "bg-blue-50",   border: "border-blue-100",   badge: "bg-blue-100 text-blue-700",   text: "text-blue-900" },
-  orange: { bg: "bg-orange-50", border: "border-orange-100", badge: "bg-orange-100 text-orange-700", text: "text-orange-900" },
-  red:    { bg: "bg-red-50",    border: "border-red-100",    badge: "bg-red-100 text-red-700",    text: "text-red-900" },
-  yellow: { bg: "bg-yellow-50", border: "border-yellow-100", badge: "bg-yellow-100 text-yellow-700", text: "text-yellow-900" },
-  green:  { bg: "bg-green-50",  border: "border-green-100",  badge: "bg-green-100 text-green-700",  text: "text-green-900" },
-  purple: { bg: "bg-purple-50", border: "border-purple-100", badge: "bg-purple-100 text-purple-700", text: "text-purple-900" },
+  blue:   { bg: "bg-[#F0F4FA]", border: "border-[#C5D3E8]", badge: "bg-[#1B2E4B]/10 text-[#1B2E4B]", text: "text-[#1B2E4B]" },
+  orange: { bg: "bg-[#FDF8F0]", border: "border-[#E8D5A3]", badge: "bg-[#C9A84C]/15 text-[#8B6914]", text: "text-[#5C4A1E]" },
+  red:    { bg: "bg-[#FEF2F2]", border: "border-[#FECACA]", badge: "bg-red-100 text-red-700", text: "text-red-800" },
+  yellow: { bg: "bg-[#FEFCE8]", border: "border-[#FEF08A]", badge: "bg-yellow-100 text-yellow-800", text: "text-yellow-900" },
+  green:  { bg: "bg-[#F0FDF4]", border: "border-[#BBF7D0]", badge: "bg-green-100 text-green-800", text: "text-green-900" },
+  purple: { bg: "bg-[#F5F3FF]", border: "border-[#DDD6FE]", badge: "bg-purple-100 text-purple-800", text: "text-purple-900" },
 };
 
 function AnswerSection({ label, color, lines }: { label: string; color: string; lines: string[] }) {
@@ -113,9 +113,9 @@ function AnswerSection({ label, color, lines }: { label: string; color: string; 
       {isConfidence && confidenceValue ? (
         <div className="mt-1">
           <span className={`text-sm font-bold ${c.text}`}>%{confidenceValue}</span>
-          <div className="bg-white/70 rounded-full h-2.5 mt-1">
+          <div className="bg-[#E8E3DC] rounded-full h-2.5 mt-1">
             <div
-              className="bg-purple-500 h-2.5 rounded-full transition-all duration-700"
+              className="bg-[#C9A84C] h-2.5 rounded-full transition-all duration-700"
               style={{ width: `${confidenceValue}%` }}
             />
           </div>
@@ -306,11 +306,11 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
   const pdfSections = pdfAnswer ? parseAnswer(pdfAnswer, PDF_SECTION_KEYS) : [];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6 sm:p-8 flex flex-col gap-5">
+    <div className="bg-white rounded-2xl border border-[#E8E3DC] shadow-[0_2px_16px_rgba(27,46,75,0.07)] p-6 sm:p-8 flex flex-col gap-5 border-l-4 border-l-[#C9A84C]">
       {/* Section header */}
       <div>
-        <p className="text-base font-bold text-gray-900">Belge Yükle ve Analiz Et</p>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <p className="text-base font-bold text-[#1B2E4B]">Belge Yükle ve Analiz Et</p>
+        <p className="text-sm text-[#6B7280] mt-0.5">
           Sözleşme, teklif dosyası veya rapor yükleyerek riskleri öğrenin
         </p>
       </div>
@@ -324,12 +324,12 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
           onClick={() => (pdfState === "empty" || pdfError) && inputRef.current?.click()}
           className={`relative transition-all duration-200 ${
             pdfError
-              ? "border-2 border-dashed border-red-300 bg-red-50/60 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-red-400"
+              ? "border-2 border-dashed border-red-300 bg-red-50 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-red-400"
               : pdfState === "selected"
-                ? "border-2 border-dashed border-emerald-300 bg-emerald-50/60 rounded-xl p-8 flex flex-col items-center gap-3 cursor-default"
+                ? "border-2 border-dashed border-[#C9A84C] bg-[#FDF8F0] rounded-xl p-8 flex flex-col items-center gap-3 cursor-default"
                 : isDragging
-                  ? "border-2 border-dashed border-blue-400 bg-blue-50/40 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer"
-                  : "border-2 border-dashed border-gray-200 bg-gray-50/80 hover:border-blue-300 hover:bg-blue-50/40 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer"
+                  ? "border-2 border-dashed border-[#1B2E4B] bg-[#F0F4FA] rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer"
+                  : "border-2 border-dashed border-[#C5D3E8] bg-[#F7F9FC] hover:border-[#1B2E4B] hover:bg-[#F0F4FA] rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer"
           }`}
         >
           <input
@@ -380,7 +380,7 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
       {pdfState === "selected" && (
         <button
           onClick={handleAnalyze}
-          className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-sm"
+          className="w-full bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] text-white font-bold py-4 rounded-xl transition-all duration-200 text-sm shadow-sm"
         >
           Belgeyi Analiz Et
         </button>
@@ -391,30 +391,30 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
         <div className="flex flex-col gap-3">
           {/* Large document warning */}
           {pageCount !== null && pageCount > 10 && (
-            <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+            <div className="flex items-start gap-2.5 bg-[#FDF8F0] border border-[#C9A84C]/30 rounded-xl px-5 py-4">
               <span className="text-base leading-none mt-0.5">⏳</span>
-              <p className="text-sm text-amber-800 leading-snug">
+              <p className="text-sm text-[#5C4A1E] leading-snug">
                 Büyük bir belge yüklediniz ({pageCount} sayfa). Tam analiz 5–10 dakika sürebilir. Lütfen sayfayı kapatmayın.
               </p>
             </div>
           )}
 
           {/* Status notification box */}
-          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
-            <span className="inline-block w-5 h-5 min-w-[1.25rem] border-[2.5px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-medium text-blue-800 leading-snug">{statusMsg}</p>
+          <div className="flex items-center gap-3 bg-[#FDF8F0] border border-[#C9A84C]/40 border-l-4 border-l-[#C9A84C] rounded-xl px-5 py-4">
+            <span className="inline-block w-5 h-5 min-w-[1.25rem] border-[2.5px] border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium text-[#1B2E4B] leading-snug">{statusMsg}</p>
           </div>
 
           {/* Progress bar — shown once chunking starts */}
           {progress && (
-            <div className="bg-white border border-blue-100 rounded-xl px-5 py-4">
-              <div className="flex justify-between text-xs text-blue-500 mb-2">
+            <div className="bg-white border border-[#E8E3DC] rounded-xl px-5 py-4">
+              <div className="flex justify-between text-xs text-[#6B7280] mb-2">
                 <span>{progress.current} / {progress.total} bölüm tamamlandı</span>
                 <span>{Math.round((progress.current / progress.total) * 100)}%</span>
               </div>
-              <div className="w-full bg-blue-100 rounded-full h-2">
+              <div className="w-full bg-[#E8E3DC] rounded-full h-2">
                 <div
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                  className="bg-[#C9A84C] h-2 rounded-full transition-all duration-500"
                   style={{ width: `${(progress.current / progress.total) * 100}%` }}
                 />
               </div>
@@ -425,23 +425,23 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
 
       {/* Error */}
       {pdfError && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{pdfError}</p>
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{pdfError}</p>
       )}
 
       {/* Result */}
       {pdfState === "done" && pdfAnswer && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-widest">Belge Analiz Sonucu</p>
+            <p className="text-[10px] font-semibold text-[#1B2E4B] uppercase tracking-widest">Belge Analiz Sonucu</p>
             <button
               onClick={handleReset}
-              className="text-xs text-gray-400 hover:text-gray-600 underline transition"
+              className="text-xs text-[#6B7280] hover:text-[#2D2D2D] underline transition"
             >
               Yeni belge yükle
             </button>
           </div>
 
-          <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-[#6B7280] bg-[#F7F9FC] border border-[#E8E3DC] rounded-lg px-3 py-2">
             📄 <span className="font-medium">{fileName}</span>
           </p>
 
@@ -460,15 +460,15 @@ function PdfUploadSection({ onExpert }: { onExpert: () => void }) {
 
           {/* Expert CTA — show only when full result is parsed */}
           {pdfSections.length > 0 && (
-            <div className="mt-1 rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 p-5 flex flex-col gap-3">
+            <div className="mt-1 rounded-xl bg-gradient-to-r from-[#1B2E4B] to-[#243d63] p-5 flex flex-col gap-3">
               <p className="text-sm font-semibold text-white">
                 Bu belge için detaylı inceleme önerilir.
                 <br />
-                <span className="text-xs text-gray-400 font-normal mt-1 block">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
+                <span className="text-xs text-[#C9A84C]/80 font-normal mt-1 block">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
               </p>
               <button
                 onClick={onExpert}
-                className="bg-white hover:bg-gray-100 text-gray-900 font-semibold px-5 py-2.5 rounded-lg text-sm transition-all shadow-sm self-start"
+                className="bg-[#C9A84C] hover:bg-[#b8923e] text-[#1B2E4B] font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-sm self-start"
               >
                 Uzmanla Detaylı İncele
               </button>
@@ -514,14 +514,13 @@ export default function Home() {
   const parsedSections = rawAnswer ? parseAnswer(rawAnswer, SECTION_KEYS) : [];
 
   return (
-    <div className="min-h-screen bg-[#f7f8fc] flex flex-col">
+    <div className="min-h-screen bg-[#FAFAF8] flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 py-4 px-6 sticky top-0 z-10 shadow-sm">
+      <header className="bg-[#1B2E4B] border-b-2 border-[#C9A84C] py-4 px-6 sticky top-0 z-10 shadow-[0_2px_12px_rgba(27,46,75,0.2)]">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className="w-1.5 h-7 bg-blue-600 rounded-full" />
-          <span className="text-sm font-bold text-gray-800 tracking-tight flex items-center">
+          <span className="text-sm font-bold text-white tracking-tight flex items-center">
             AI Destekli Kentsel Dönüşüm Rehberi
-            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full ml-2">Beta</span>
+            <span className="text-[10px] font-semibold text-[#C9A84C] bg-[#C9A84C]/10 border border-[#C9A84C]/30 px-2 py-0.5 rounded-full ml-2">Beta</span>
           </span>
         </div>
       </header>
@@ -531,16 +530,16 @@ export default function Home() {
 
           {/* Hero */}
           <div className="text-center px-2 pt-2 pb-6">
-            <h1 className="text-[2rem] sm:text-[2.5rem] font-extrabold text-gray-900 leading-[1.2] tracking-tight mb-3">
+            <h1 className="text-[2rem] sm:text-[2.5rem] font-extrabold text-[#1B2E4B] leading-[1.2] tracking-tight mb-3">
               Aklınıza Takılan Her Şeyi<br className="hidden sm:block" /> Sade ve Anlaşılır Şekilde Öğrenin
             </h1>
-            <p className="text-base sm:text-lg text-gray-500 leading-relaxed max-w-lg mx-auto mb-5">
+            <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-lg mx-auto mb-5">
               Bina riskinizi öğrenin, haklarınızı anlayın ve sonraki adımları netleştirin.
             </p>
-            <ul className="inline-flex flex-col items-start gap-2 text-sm text-gray-600">
+            <ul className="inline-flex flex-col items-start gap-2 text-sm text-[#2D2D2D]">
               {["Binanızın risklerini anlayın", "Haklarınızı öğrenin", "Doğru adımları planlayın"].map((item) => (
                 <li key={item} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 mt-0.5" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] flex-shrink-0 mt-0.5" />
                   {item}
                 </li>
               ))}
@@ -549,13 +548,13 @@ export default function Home() {
 
           {/* Guidance Buttons */}
           <div className="flex flex-col gap-2">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Ne yapmak istiyorsunuz?</p>
+            <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest px-1">Ne yapmak istiyorsunuz?</p>
             <div className="flex flex-wrap gap-2">
               {GUIDANCE_BUTTONS.map(({ label, prompt }) => (
                 <button
                   key={label}
                   onClick={() => setQuestion(prompt)}
-                  className="bg-white border border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-700 hover:text-blue-800 text-sm font-medium px-5 py-2.5 rounded-full shadow-sm transition-all duration-200 active:scale-95"
+                  className="bg-white border border-[#E8E3DC] hover:border-[#C9A84C] hover:bg-[#FDF8F0] text-[#2D2D2D] hover:text-[#1B2E4B] text-sm font-medium px-5 py-2.5 rounded-full shadow-sm transition-all duration-200 active:scale-95"
                 >
                   {label}
                 </button>
@@ -564,12 +563,12 @@ export default function Home() {
           </div>
 
           {/* Input Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6 sm:p-8 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-[#E8E3DC] shadow-[0_2px_16px_rgba(27,46,75,0.07)] p-6 sm:p-8 flex flex-col gap-5 border-l-4 border-l-[#C9A84C]">
             <div className="flex items-center justify-between">
-              <label htmlFor="question" className="text-sm font-semibold text-gray-800">
+              <label htmlFor="question" className="text-sm font-semibold text-[#1B2E4B]">
                 Sorunuzu buraya yazın
               </label>
-              <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2.5 py-1 tracking-wide uppercase">
+              <span className="text-[10px] font-semibold text-[#C9A84C] bg-[#FDF8F0] border border-[#C9A84C]/30 rounded-full px-2.5 py-1 tracking-wide uppercase">
                 AI ile analiz edilir
               </span>
             </div>
@@ -580,13 +579,13 @@ export default function Home() {
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Örnek: Binam riskli mi? Kiracı olarak haklarım neler? Kredi alabilir miyim? Müteahhit seçerken nelere dikkat etmeliyim?"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder-gray-400 leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 bg-white"
+              className="w-full border border-[#E8E3DC] rounded-xl px-4 py-3.5 text-sm text-[#2D2D2D] placeholder-[#A0A0A0] leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#1B2E4B] focus:border-transparent transition-all duration-200 disabled:opacity-50 bg-white"
               disabled={loading}
             />
             <button
               onClick={handleAsk}
               disabled={loading || !question.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 text-sm tracking-wide shadow-sm flex items-center justify-center gap-2"
+              className="w-full bg-[#1B2E4B] hover:bg-[#243d63] active:bg-[#142238] disabled:bg-[#E8E3DC] disabled:text-[#A0A0A0] disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 text-sm tracking-wide shadow-sm flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -595,42 +594,42 @@ export default function Home() {
                 </>
               ) : "Analizi Başlat"}
             </button>
-            <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+            <p className="text-[11px] text-[#A0A0A0] text-center leading-relaxed">
               Bu sistem ön bilgilendirme sağlar. Kesin teknik ve hukuki değerlendirme için uzman desteği gerekebilir.
             </p>
           </div>
 
           {/* Example Questions */}
           <div className="flex flex-col gap-3">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Örnek Sorular</p>
+            <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest px-1">Örnek Sorular</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {EXAMPLE_QUESTIONS.map((q) => (
                 <button
                   key={q}
                   onClick={() => setQuestion(q)}
-                  className="group text-left bg-white border border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-gray-600 hover:text-blue-800 text-sm px-5 py-3.5 rounded-xl transition-all duration-200 shadow-sm flex items-start gap-2"
+                  className="group text-left bg-white border border-[#E8E3DC] hover:border-[#C9A84C] hover:bg-[#FDF8F0] text-[#2D2D2D] hover:text-[#1B2E4B] text-sm px-5 py-3.5 rounded-xl transition-all duration-200 shadow-sm flex items-start gap-2"
                 >
                   <span className="flex-1">{q}</span>
-                  <span className="text-gray-300 group-hover:text-blue-400 transition-colors text-xs mt-0.5">→</span>
+                  <span className="text-[#C9A84C] group-hover:text-[#C9A84C] transition-colors text-xs mt-0.5">→</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Q&A Result Area */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6 sm:p-8 flex flex-col gap-5">
-            <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-widest">Analiz Sonucu</p>
+          <div className="bg-white rounded-2xl border border-[#E8E3DC] shadow-[0_2px_16px_rgba(27,46,75,0.07)] p-6 sm:p-8 flex flex-col gap-5 border-l-4 border-l-[#C9A84C]">
+            <p className="text-[10px] font-semibold text-[#C9A84C] uppercase tracking-widest">Analiz Sonucu</p>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             {!hasAsked && !error && (
-              <p className="text-sm text-gray-400 italic">Analiz sonucu burada görünecek...</p>
+              <p className="text-sm text-[#6B7280] italic">Analiz sonucu burada görünecek...</p>
             )}
 
             {hasAsked && !error && loading && rawAnswer === "" && (
               <div className="flex items-center gap-3 text-gray-400 text-sm py-2">
-                <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <span>Analiz ediliyor, lütfen bekleyin...</span>
+                <span className="inline-block w-4 h-4 border-2 border-[#1B2E4B] border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-[#6B7280]">Analiz ediliyor, lütfen bekleyin...</span>
               </div>
             )}
 
@@ -643,18 +642,18 @@ export default function Home() {
             )}
 
             {rawAnswer && parsedSections.length === 0 && (
-              <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">{rawAnswer}</p>
+              <p className="text-[#2D2D2D] text-sm leading-relaxed whitespace-pre-wrap">{rawAnswer}</p>
             )}
 
             {hasAsked && !loading && rawAnswer && (
-              <div className="mt-1 rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 p-5 flex flex-col gap-3">
+              <div className="mt-1 rounded-xl bg-gradient-to-r from-[#1B2E4B] to-[#243d63] p-5 flex flex-col gap-3">
                 <p className="text-sm font-semibold text-white">
                   Bu durumda detaylı analiz önerilir.<br />
-                  <span className="text-xs text-gray-400 font-normal mt-1 block">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
+                  <span className="text-xs text-[#C9A84C]/80 font-normal mt-1 block">Uzman incelemesi ile riskleri netleştirebilirsiniz.</span>
                 </p>
                 <button
                   onClick={handleExpert}
-                  className="bg-white hover:bg-gray-100 text-gray-900 font-semibold px-5 py-2.5 rounded-lg text-sm transition-all shadow-sm self-start"
+                  className="bg-[#C9A84C] hover:bg-[#b8923e] text-[#1B2E4B] font-bold px-5 py-2.5 rounded-lg text-sm transition-all shadow-sm self-start"
                 >
                   Detaylı analiz için uzmanla görüş
                 </button>
@@ -666,21 +665,21 @@ export default function Home() {
           <PdfUploadSection onExpert={handleExpert} />
 
           {/* Expert Section */}
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 sm:p-10 text-center flex flex-col items-center gap-4 shadow-[0_4px_20px_rgba(37,99,235,0.25)]">
+          <div className="bg-gradient-to-br from-[#1B2E4B] to-[#243d63] rounded-2xl p-8 sm:p-10 text-center flex flex-col items-center gap-4 shadow-[0_4px_20px_rgba(27,46,75,0.25)]">
             <p className="text-xl font-bold text-white leading-snug">Bu konuda risk almak istemiyor musunuz?</p>
-            <p className="text-sm text-blue-200 max-w-xs mx-auto">Detaylı analiz ile daha net ve güvenli karar verin</p>
+            <p className="text-sm text-[#C9A84C]/80 max-w-xs mx-auto">Detaylı analiz ile daha net ve güvenli karar verin</p>
             <button
               onClick={handleExpert}
-              className="bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 font-bold py-3.5 px-8 rounded-xl transition-all duration-200 text-sm shadow-md mt-2"
+              className="bg-[#C9A84C] hover:bg-[#b8923e] active:bg-[#a07830] text-[#1B2E4B] font-bold py-3.5 px-8 rounded-xl transition-all duration-200 text-sm shadow-md mt-2"
             >
               Detaylı analiz için uzmanla görüş
             </button>
-            <p className="text-xs text-blue-300">İnşaat mühendisi, jeolog veya uzman danışman desteği</p>
+            <p className="text-xs text-white/50">İnşaat mühendisi, jeolog veya uzman danışman desteği</p>
           </div>
 
           {/* Trust Features */}
           <div className="flex flex-col gap-3">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Neden güvenilir?</p>
+            <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest px-1">Neden güvenilir?</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
                 "Türkiye'ye özel içerik",
@@ -688,9 +687,9 @@ export default function Home() {
                 "Tarafsız analiz",
                 "Gerektiğinde uzman yönlendirme",
               ].map((item) => (
-                <div key={item} className="bg-white border border-gray-200 rounded-xl px-5 py-3.5 flex items-center gap-3 shadow-sm hover:border-gray-300 transition-all duration-150">
-                  <span className="text-emerald-500 font-bold text-sm">✓</span>
-                  <span className="text-sm text-gray-700 font-medium">{item}</span>
+                <div key={item} className="bg-white border border-[#E8E3DC] rounded-xl px-5 py-3.5 flex items-center gap-3 shadow-sm hover:border-[#C9A84C] transition-all duration-150">
+                  <span className="text-[#C9A84C] font-bold text-sm">✓</span>
+                  <span className="text-sm text-[#2D2D2D] font-medium">{item}</span>
                 </div>
               ))}
             </div>
@@ -700,9 +699,9 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 bg-white py-6 px-6 mt-6">
+      <footer className="border-t border-[#E8E3DC] bg-[#1B2E4B] py-6 px-6 mt-6">
         <div className="max-w-2xl mx-auto text-center">
-          <p className="text-xs text-gray-400 leading-relaxed">
+          <p className="text-xs text-white/50 leading-relaxed">
             Bu bilgiler genel rehberlik amaçlıdır. Hukuki karar değildir.
           </p>
         </div>
