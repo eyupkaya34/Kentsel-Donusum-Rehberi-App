@@ -167,10 +167,12 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
   const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
   try {
-    const pdfParse = (await import("pdf-parse")).default;
+    // Import the internal lib directly to avoid pdf-parse's debug-mode test file issue
+    // (index.js reads ./test/data/05-versions-space.pdf when bundled by esbuild)
+    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js" as string)).default;
     const pdfBuffer = Buffer.from(pdf, "base64");
-    const pdfData = await pdfParse(pdfBuffer);
-    const fullText = pdfData.text?.trim() ?? "";
+    const parsed = await pdfParse(pdfBuffer);
+    const fullText = (parsed?.text ?? "").trim();
 
     const chunks = fullText.length > 100
       ? splitIntoChunks(fullText, 3000)
@@ -240,7 +242,10 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
     send({ done: true });
     res.end();
   } catch (err) {
-    send({ error: "Analiz sırasında bir hata oluştu. Lütfen tekrar deneyin." });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack?.slice(0, 500) : "";
+    console.error("[analyze-pdf] Error:", errMsg, errStack);
+    send({ error: `Analiz sırasında bir hata oluştu: ${errMsg}` });
     res.end();
   }
 });
