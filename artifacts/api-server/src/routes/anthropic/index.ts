@@ -130,7 +130,7 @@ router.post("/analyze-pdf", async (req: Request, res: Response) => {
     send({ type: "final_start" });
 
     const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
+      model: "claude-haiku-4-5",
       max_tokens: 4000,
       system: ANALYSIS_SYSTEM,
       messages: [{
@@ -187,7 +187,7 @@ router.post("/chat", async (req: Request, res: Response) => {
   try {
     const response = await anthropic.messages.create(
       {
-        model: "claude-sonnet-4-5",
+        model: "claude-haiku-4-5",
         max_tokens: 800,
         system: CHAT_SYSTEM,
         messages: [{ role: "user", content: trimmed }],
